@@ -1367,6 +1367,34 @@ describe('SourceCache._updateRetainedTiles', () => {
 
     });
 
+    test('updateRetainedTiles fails when children() returns a single overscaled child', () => {
+        const zoom = 4;
+        const sourceMaxZoom = 6;
+
+        // create the source with the parameters to get to the block in updateRetainedTiles that returns a single overscaled child
+        const sourceCache = createSourceCache();
+        sourceCache._source.minzoom = 0;
+        sourceCache._source.maxzoom = sourceMaxZoom;
+
+        // create one ideal tile at source maxzoom with a state of loading (hasData() = false)
+        const idealID = new OverscaledTileID(6, 0, 5, 6, 10);
+        const idealTile = new Tile(idealID, undefined);
+        idealTile.state = 'loading';
+        sourceCache._tiles[idealID.key] = idealTile;
+
+        // retrieve the children of the ideal child which should return 1 overscaled child instead of 4
+        const idealChildren = idealID.children(sourceMaxZoom);
+        expect(idealChildren).toHaveLength(1);
+
+        // add the single child to the source cache as a loaded child
+        const singleChildID = idealChildren[0];
+        const singleChildTile = new Tile(singleChildID, undefined);
+        singleChildTile.state = 'loaded';
+        sourceCache._tiles[singleChildID.key] = singleChildTile;
+
+        const retain = sourceCache._updateRetainedTiles([idealID], zoom);
+        expect(retain).toBeDefined();
+    });
 });
 
 describe('SourceCache.clearTiles', () => {
