@@ -34,6 +34,13 @@ type TileResult = {
     scale: number;
 };
 
+type CrossFadeArgs = {
+    baseTile: Tile;
+    baseFadingRole: FadingRoles;
+    parentTile: Tile;
+    now: number;
+};
+
 /**
  * @internal
  * `SourceCache` is responsible for
@@ -254,8 +261,8 @@ export class SourceCache extends Evented {
         const tile = this._tiles[id];
         return (
             tile?.hasData() &&
-            !(tile.fadingBaseRole === FadingRoles.Departing && tile.fadeOpacity === 0) &&  //raster fading
-            (symbolLayer || !tile.holdingForSymbolFade())  //symbol fading
+            (!tile.fadeEndTime || tile.fadeOpacity > 0) &&  // raster fading
+            (symbolLayer || !tile.holdingForSymbolFade())   // symbol fading
         );
     }
 
@@ -744,7 +751,7 @@ export class SourceCache extends Evented {
             }
         }
 
-        this._updateFadingEdges(idealTileIDs);
+        this._updateFadingEdges(idealTileIDs, now);
     }
 
     /**
@@ -772,13 +779,14 @@ export class SourceCache extends Evented {
             const parentID = idealID.scaledTo(idealID.overscaledZ - 1);
             const parentTile = this._getLoadedTile(parentID);
             if (parentTile) {
-                // set the ideal tile as the fading base - ideal tile is fading in
-                idealTile.resetFadeLogic();
-                idealTile.fadingBaseRole = FadingRoles.Incoming;
-                idealTile.fadingParent = parentID;
+                // set the cross-fade logic with ideal tile as the base
+                this._setCrossFadeLogic({
+                    baseTile: idealTile,                    // fading in
+                    baseFadingRole: FadingRoles.Incoming,
+                    parentTile: parentTile,                 // fading out
+                    now: now
+                });
 
-                // parent tile is fading out - retain as it's no longer an ideal tile
-                parentTile.resetFadeLogic();
                 retain[parentID.key] = parentID;
                 hasFader = true;
             }
@@ -812,14 +820,15 @@ export class SourceCache extends Evented {
                     continue;
                 }
 
-                // set the loaded child as the fading base - child is fading out - retain as it's no longer an ideal tile
-                childTile.resetFadeLogic();
-                childTile.fadingBaseRole = FadingRoles.Departing;
-                childTile.fadingParent = idealTile.tileID;
-                retain[childID.key] = childID;
+                // set the cross-fade logic with child tile as the base and ideal tile as the parent
+                this._setCrossFadeLogic({
+                    baseTile: childTile,                    // fading out
+                    baseFadingRole: FadingRoles.Departing,
+                    parentTile: idealTile,                  // fading in
+                    now: now
+                });
 
-                // ideal tile is fading in - no need to retain as it's already retained
-                idealTile.resetFadeLogic();
+                retain[childID.key] = childID;
                 hasFader = true;
             }
         }
@@ -827,18 +836,29 @@ export class SourceCache extends Evented {
         return hasFader;
     }
 
+    _setCrossFadeLogic({baseTile, baseFadingRole, parentTile, now}: CrossFadeArgs) {
+        baseTile.resetFadeLogic();
+        baseTile.fadingBaseRole = baseFadingRole;
+        baseTile.fadingParent = parentTile.tileID;
+        baseTile.fadeEndTime = now + this._rasterFadeDuration;
+
+        parentTile.resetFadeLogic();
+        parentTile.fadeEndTime = now + this._rasterFadeDuration;
+    }
+
     /**
      * One-to-one self fading for unloaded edge tiles (for panning sideways on map). for loading tiles over gaps it feels
      * more natural for them to fade in, however if they are already loaded/cached then there is no need to fade as map will
      * look cohesive with no gaps. Note that draw_raster determines fade priority, as many-to-one fade supersedes edge fading.
      */
-    _updateFadingEdges(idealTileIDs: OverscaledTileID[]) {
+    _updateFadingEdges(idealTileIDs: OverscaledTileID[], now: number) {
         const idealEdgeIDs = this.getViewportEdgeTiles(idealTileIDs);
         for (const edgeID of idealEdgeIDs) {
             const sourceTile = this._tiles[edgeID.key];
             if (sourceTile && !sourceTile.hasData()) {
                 sourceTile.resetFadeLogic();
                 sourceTile.selfFading = true;
+                sourceTile.fadeEndTime = now + this._rasterFadeDuration;
             }
         }
     }
