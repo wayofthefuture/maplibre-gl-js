@@ -84,7 +84,7 @@ function drawTiles(
     const isTerrain = !!painter.style.map.terrain;
     const minTileZ = coords[coords.length - 1].overscaledZ;
 
-    // update raster fade duration with newest paint property so source cache knows whether to retain tiles for fading
+    // update raster fade duration in source cache with the newest layer paint property
     sourceCache.setRasterFadeDuration(fadeDuration);
 
     // Draw all tiles
