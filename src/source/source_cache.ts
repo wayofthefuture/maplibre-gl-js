@@ -740,6 +740,7 @@ export class SourceCache extends Evented {
      */
     _updateFadingTiles(idealTileIDs: OverscaledTileID[], retain: {[_: string]: OverscaledTileID}) {
         const now = browser.now();
+        const edgeCandidates: OverscaledTileID[] = [];
 
         for (const idealID of idealTileIDs) {
             const idealTile = this._tiles[idealID.key];
@@ -748,10 +749,11 @@ export class SourceCache extends Evented {
             // if ideal tile is not a fader - reset fade logic in case it is needed (prevents holes in the grid)
             if (!parentIsFader && !childIsFader && !idealTile.selfFading) {
                 idealTile.resetFadeLogic();
+                edgeCandidates.push(idealID);
             }
         }
 
-        this._updateFadingEdges(idealTileIDs, now);
+        this._updateFadingEdges(edgeCandidates, now);
     }
 
     /**
@@ -767,31 +769,30 @@ export class SourceCache extends Evented {
     _updateFadingParent(idealTile: Tile, retain: {[_: string]: OverscaledTileID}, now: number): boolean {
         const {tileID: idealID, fadingBaseRole, fadingParent} = idealTile;
 
-        // parent tile is already fading - retain and return
+        // ideal tile already has fading parent - retain and return
         if (fadingBaseRole === FadingRoles.Incoming && fadingParent) {
             retain[fadingParent.key] = fadingParent;
             return true;
         }
 
         // find a loaded parent tile to fade with the ideal tile
-        let hasFader = false;
-        if (idealID.overscaledZ > this._source.minzoom) {
-            const parentID = idealID.scaledTo(idealID.overscaledZ - 1);
-            const parentTile = this._getLoadedTile(parentID);
-            if (parentTile) {
-                // set the cross-fade logic with ideal tile as the base
+        const maxAncestorLevels = 5;
+        const minAncestorZ = Math.max(idealID.overscaledZ - maxAncestorLevels, this._source.minzoom);
+        for (let ancestorZ = idealID.overscaledZ - 1; ancestorZ >= minAncestorZ; ancestorZ--) {
+            const ancestorID = idealID.scaledTo(ancestorZ);
+            const ancestorTile = this._getLoadedTile(ancestorID);
+            if (ancestorTile) {
                 this._setCrossFadeLogic({
                     baseTile: idealTile,                    // fading in
                     baseFadingRole: FadingRoles.Incoming,
-                    parentTile: parentTile,                 // fading out
-                    now: now
+                    parentTile: ancestorTile,               // fading out
+                    now
                 });
-
-                retain[parentID.key] = parentID;
-                hasFader = true;
+                retain[ancestorID.key] = ancestorID;
+                return true;
             }
         }
-        return hasFader;
+        return false;
     }
 
     /**
@@ -807,14 +808,14 @@ export class SourceCache extends Evented {
     _updateFadingChildren(idealTile: Tile, retain: {[_: string]: OverscaledTileID}, now: number): boolean {
         let hasFader = false;
 
-        // find loaded children tiles to fade with the ideal tile
+        // find loaded child tiles to fade with the ideal tile
         for (const childID of idealTile.tileID.children(this._source.maxzoom)) {
             const childTile = this._getLoadedTile(childID);
             if (childTile) {
-                const {fadingParent, fadingBaseRole} = childTile;
+                const {fadingBaseRole, fadingParent} = childTile;
 
                 // child tile is already fading - retain and continue
-                if (fadingParent && fadingBaseRole === FadingRoles.Departing) {
+                if (fadingBaseRole === FadingRoles.Departing && fadingParent) {
                     retain[childID.key] = childID;
                     hasFader = true;
                     continue;
