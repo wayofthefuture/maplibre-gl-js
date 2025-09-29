@@ -7,7 +7,6 @@ import {DepthMode} from '../gl/depth_mode';
 import {CullFaceMode} from '../gl/cull_face_mode';
 import {rasterUniformValues} from './program/raster_program';
 import {EXTENT} from '../data/extent';
-import type {Tile} from '../source/tile';
 import {FadingRoles} from '../source/tile';
 import Point from '@mapbox/point-geometry';
 
@@ -15,6 +14,7 @@ import type {Painter, RenderOptions} from './painter';
 import type {SourceCache} from '../source/source_cache';
 import type {RasterStyleLayer} from '../style/style_layer/raster_style_layer';
 import type {OverscaledTileID} from '../source/tile_id';
+import type {Tile} from '../source/tile';
 
 const cornerCoords = [
     new Point(0, 0),
@@ -69,31 +69,34 @@ function drawTiles(
     allowPoles: boolean,
     corners: Array<Point>,
     flipCullfaceMode: boolean = false,
-    isRenderingToTexture: boolean = false
-) {
+    isRenderingToTexture: boolean = false) {
+    const minTileZ = coords[coords.length - 1].overscaledZ;
+
     const context = painter.context;
     const gl = context.gl;
     const program = painter.useProgram('raster');
     const transform = painter.transform;
+
     const projection = painter.style.projection;
+
     const colorMode = painter.colorModeForRenderPass();
     const align = !painter.options.moving;
     const rasterOpacity = layer.paint.get('raster-opacity');
     const rasterResampling = layer.paint.get('raster-resampling');
     const fadeDuration = layer.paint.get('raster-fade-duration');
     const isTerrain = !!painter.style.map.terrain;
-    const minTileZ = coords[coords.length - 1].overscaledZ;
 
     // update raster fade duration in source cache with the newest layer paint property
     sourceCache.setRasterFadeDuration(fadeDuration);
 
     // Draw all tiles
     for (const coord of coords) {
-        const tile = sourceCache.getTile(coord);
-
         // Set the lower zoom level to sublayer 0, and higher zoom levels to higher sublayers
         // Use gl.LESS to prevent double drawing in areas where tiles overlap.
-        const depthMode = painter.getDepthModeForSublayer(coord.overscaledZ - minTileZ, rasterOpacity === 1 ? DepthMode.ReadWrite : DepthMode.ReadOnly, gl.LESS);
+        const depthMode = painter.getDepthModeForSublayer(coord.overscaledZ - minTileZ,
+            rasterOpacity === 1 ? DepthMode.ReadWrite : DepthMode.ReadOnly, gl.LESS);
+
+        const tile = sourceCache.getTile(coord);
         const textureFilter = rasterResampling === 'nearest' ?  gl.NEAREST : gl.LINEAR;
 
         // create and bind first texture
@@ -131,7 +134,8 @@ function drawTiles(
         // Enable anisotropic filtering only when the pitch is greater than 20 degrees
         // to preserve image sharpness on flat or slightly tilted maps.
         if (tile.texture.useMipmap && context.extTextureFilterAnisotropic && painter.transform.pitch > 20) {
-            gl.texParameterf(gl.TEXTURE_2D, context.extTextureFilterAnisotropic.TEXTURE_MAX_ANISOTROPY_EXT, context.extTextureFilterAnisotropicMax);
+            gl.texParameterf(gl.TEXTURE_2D, context.extTextureFilterAnisotropic.TEXTURE_MAX_ANISOTROPY_EXT,
+                context.extTextureFilterAnisotropicMax);
         }
 
         const terrainData = painter.style.map.terrain && painter.style.map.terrain.getTerrainData(coord);

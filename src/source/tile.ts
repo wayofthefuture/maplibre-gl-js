@@ -45,7 +45,7 @@ import type {FeatureIndex, QueryResults} from '../data/feature_index';
  */
 export type TileState = 'loading' | 'loaded' | 'reloading' | 'unloaded' | 'errored' | 'expired';
 
-// raster fading roles - tile is either incoming (fading in ideal tile) out departing (fading out non-ideal tile)
+// raster fading roles - tile is either incoming (fading in) or departing (fading out)
 export enum FadingRoles {
     Departing, Incoming
 }

@@ -1,9 +1,7 @@
-import type {Source} from './source';
 import {create as createSource} from './source';
 
-import type {TileState} from './tile';
-import {FadingRoles, Tile} from './tile';
-import {ErrorEvent, Event, Evented} from '../util/evented';
+import {Tile, FadingRoles} from './tile';
+import {Event, ErrorEvent, Evented} from '../util/evented';
 import {TileCache} from './tile_cache';
 import {MercatorCoordinate} from '../geo/mercator_coordinate';
 import {keysDifference} from '../util/util';
@@ -14,10 +12,13 @@ import {browser} from '../util/browser';
 import {OverscaledTileID} from './tile_id';
 import {SourceFeatureState} from './source_state';
 import {config} from '../util/config';
+
+import type {Source} from './source';
 import type {Map} from '../ui/map';
 import type {Style} from '../style/style';
 import type {Dispatcher} from '../util/dispatcher';
 import type {IReadonlyTransform, ITransform} from '../geo/transform_interface';
+import type {TileState} from './tile';
 import type {ICanonicalTileID, SourceSpecification} from '@maplibre/maplibre-gl-style-spec';
 import type {MapSourceDataEvent} from '../ui/events';
 import type {Terrain} from '../render/terrain';
@@ -477,17 +478,6 @@ export class SourceCache extends Evented {
     }
 
     /**
-     * Get a cached tile from this sources tile cache.
-     */
-    // _getCachedTile(tileID: OverscaledTileID) {
-    //     // TileCache ignores wrap in lookup.
-    //     const cachedTile = this._cache.getByKey(tileID.wrapped().key);
-    //     if (cachedTile?.hasData()) {
-    //         return cachedTile;
-    //     }
-    // }
-
-    /**
      * Resizes the tile cache based on the current viewport's size
      * or the maxTileCacheSize option passed during map creation
      *
@@ -587,6 +577,7 @@ export class SourceCache extends Evented {
                 idealTileIDs = idealTileIDs.filter((coord) => (this._source.hasTile as any)(coord));
             }
         }
+
         // When sourcecache is used for terrain also load parent tiles for complete rendering of 3d terrain levels
         if (this.usedForTerrain) {
             idealTileIDs = this._addTerrainIdealTiles(idealTileIDs);
