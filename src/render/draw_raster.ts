@@ -172,9 +172,6 @@ function getFadeValues(tile: Tile, parentTile: Tile, fadeDuration: number): {opa
         tile.fadeOpacity = doFadeIn ? opacities[0] : opacities[1];
         parentTile.fadeOpacity = doFadeIn ? opacities[1] : opacities[0];
 
-        // console.log(tile.tileID.overscaledZ, tile.fadeOpacity);
-        // console.log(parentTile.tileID.overscaledZ, parentTile.fadeOpacity);
-
         // when crossfading, this tile is drawn fully opaque, and mix controls partner visibility
         return {
             opacity: 1,

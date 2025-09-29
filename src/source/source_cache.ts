@@ -606,7 +606,7 @@ export class SourceCache extends Evented {
         for (const retainedId in retain) {
             // Make sure retained tiles always clear any existing fade holds
             // so that if they're removed again their fade timer starts fresh.
-            this._tiles[retainedId]?.clearSymbolFadeHold();
+            this._tiles[retainedId].clearSymbolFadeHold();
         }
 
         // Remove the tiles we don't need anymore.
@@ -734,15 +734,17 @@ export class SourceCache extends Evented {
 
         for (const idealID of idealTileIDs) {
             const idealTile = this._tiles[idealID.key];
-            const parentIsFader = this._updateFadingParent(idealTile, retain, now);
-            const childIsFader = this._updateFadingChildren(idealTile, retain, now);
-            // if ideal tile is not a fader - reset fade logic in case it is needed (prevents holes in the grid)
-            if (!parentIsFader && !childIsFader && !idealTile.selfFading) {
+
+            const hasFader =
+                this._updateFadingParent(idealTile, retain, now) ||
+                this._updateFadingChildren(idealTile, retain, now) ||
+                this._updateFadingSelf(idealTile, now);
+
+            // if ideal tile is not a fader reset logic in case it's needed (prevents holes in the grid)
+            if (!hasFader) {
                 idealTile.resetFadeLogic();
             }
         }
-
-        this._updateFadingEdges(idealTileIDs, now);
     }
 
     /**
@@ -853,54 +855,23 @@ export class SourceCache extends Evented {
     }
 
     /**
-     * One-to-one self fading for unloaded edge tiles (for panning sideways on map). for loading tiles over gaps it feels
-     * more natural for them to fade in, however if they are already loaded/cached then there is no need to fade as map will
-     * look cohesive with no gaps. Note that draw_raster determines fade priority, as many-to-one fade supersedes edge fading.
+     * Self fading for unloaded tiles. When loading tiles over gaps it feels more natural for them to fade in, however
+     * if they are already loaded/cached then there is no need to fade as map will look more cohesive with no gaps.
+     * Note that draw_raster determines fade priority, as many-to-one fading above supersedes self fading.
      */
-    _updateFadingEdges(idealTileIDs: OverscaledTileID[], now: number) {
-        const idealEdgeIDs = this._getViewportEdgeTiles(idealTileIDs);
-        for (const edgeID of idealEdgeIDs) {
-            const sourceTile = this._tiles[edgeID.key];
-            if (sourceTile && !sourceTile.hasData()) {
-                sourceTile.resetFadeLogic();
-                sourceTile.selfFading = true;
-                sourceTile.fadeEndTime = now + this._rasterFadeDuration;
-            }
+    _updateFadingSelf(idealTile: Tile, now: number): boolean {
+        // tile is already fading
+        if (idealTile.selfFading) {
+            return true;
         }
-    }
-
-    /**
-     * Determine edge tiles for a pitched tile plane containing varying zoom levels
-     */
-    _getViewportEdgeTiles(tileIDs: OverscaledTileID[]): OverscaledTileID[] {
-        if (!tileIDs.length) return [];
-
-        // set a common zoom for calculation (highest zoom) to reproject all tiles to this same zoom
-        const targetZ = Math.max(...tileIDs.map(t => t.canonical.z));
-
-        // project all tiles to targetZ while maintaining the reference to the original tile id
-        const projected = tileIDs.map(id => {
-            const {x, y, z} = id.canonical;
-            const scale = Math.pow(2, targetZ - z);
-            return {
-                id: id,        //store the original ref
-                x: x * scale,  //new x at targetZ
-                y: y * scale   //new y at targetZ
-            };
-        });
-
-        // find edges at targetZ using the reprojected tile ids
-        const xs = projected.map(p => p.x);  //array of x
-        const ys = projected.map(p => p.y);  //array of y
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-
-        // select tiles whose projected coords are on the edges
-        return projected
-            .filter(p => p.x === minX || p.x === maxX || p.y === minY || p.y === maxY)
-            .map(p => p.id);  //un-project back to the original tile id
+        // enable self fading for ideal tiles without data (note at this point the cached has already been checked)
+        if (!idealTile.hasData()) {
+            idealTile.resetFadeLogic();
+            idealTile.selfFading = true;
+            idealTile.fadeEndTime = now + this._rasterFadeDuration;
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -1134,7 +1105,6 @@ export class SourceCache extends Evented {
             for (const id in this._tiles) {
                 const tile = this._tiles[id];
                 if (tile.fadeEndTime >= now) {
-                    console.log('fading...');
                     return true;
                 }
             }
