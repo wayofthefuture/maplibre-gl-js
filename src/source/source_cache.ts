@@ -796,7 +796,7 @@ export class SourceCache extends Evented {
     }
 
     /**
-     * Many-to-one cross-fade. Set 4 children of ideal tiles as the fading base with the ideal tile
+     * Many-to-one cross-fade. Search descendents of ideal tiles as the fading base with the ideal tile
      * as the fading parent. Here the children are fading out and the ideal tile is fading in.
      *
      *                                                         ■
@@ -804,33 +804,49 @@ export class SourceCache extends Evented {
      * Ideal tiles - fading in           ■              ■              ■              ■          -- Fading Parent
      *                             ┌───┬─┴─┬───┐  ┌───┬─┴─┬───┐  ┌───┬─┴─┬───┐  ┌───┬─┴─┬───┐
      * Child tiles - fading out    ■   ■   ■   ■  ■   ■   ■   ■  ■   ■   ■   ■  ■   ■   ■   ■    -- Base Role = Departing
+     *
+     * Try direct children first. If none found, try grandchildren. Stops as soon as a generation provides a fader.
      */
     _updateFadingChildren(idealTile: Tile, retain: {[_: string]: OverscaledTileID}, now: number): boolean {
-        let hasFader = false;
+        const parseChildren = (tileID: OverscaledTileID): boolean => {
+            if (tileID.overscaledZ >= this._source.maxzoom) return false;
+            let foundFader = false;
 
-        // find loaded child tiles to fade with the ideal tile
-        for (const childID of idealTile.tileID.children(this._source.maxzoom)) {
-            const childTile = this._getLoadedTile(childID);
-            if (childTile) {
-                const {fadingBaseRole, fadingParent} = childTile;
+            // find loaded child tiles to fade with the ideal tile
+            for (const childID of tileID.children(this._source.maxzoom)) {
+                const childTile = this._getLoadedTile(childID);
+                if (childTile) {
+                    const {fadingBaseRole, fadingParent} = childTile;
 
-                // child tile is already fading - retain and continue
-                if (fadingBaseRole === FadingRoles.Departing && fadingParent) {
+                    if (fadingBaseRole === FadingRoles.Departing && fadingParent) {
+                        // child is already fading - do nothing
+                    } else {
+                        // set the cross-fade logic with child tile as the base and ideal tile as the parent
+                        this._setCrossFadeLogic({
+                            baseTile: childTile,                    // fading out
+                            baseFadingRole: FadingRoles.Departing,
+                            parentTile: idealTile,                  // fading in
+                            now
+                        });
+                    }
+
                     retain[childID.key] = childID;
-                    hasFader = true;
-                    continue;
+                    foundFader = true;
                 }
+            }
 
-                // set the cross-fade logic with child tile as the base and ideal tile as the parent
-                this._setCrossFadeLogic({
-                    baseTile: childTile,                    // fading out
-                    baseFadingRole: FadingRoles.Departing,
-                    parentTile: idealTile,                  // fading in
-                    now: now
-                });
+            return foundFader;
+        };
 
-                retain[childID.key] = childID;
-                hasFader = true;
+        // search first level of descendents (4 tiles)
+        let hasFader = parseChildren(idealTile.tileID);
+
+        // if none found search second level of descendents (16 tiles)
+        if (!hasFader) {
+            for (const childID of idealTile.tileID.children(this._source.maxzoom)) {
+                if (parseChildren(childID)) {
+                    hasFader = true;
+                }
             }
         }
 
