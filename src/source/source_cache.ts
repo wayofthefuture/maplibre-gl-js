@@ -740,7 +740,6 @@ export class SourceCache extends Evented {
      */
     _updateFadingTiles(idealTileIDs: OverscaledTileID[], retain: {[_: string]: OverscaledTileID}) {
         const now = browser.now();
-        const edgeCandidates: OverscaledTileID[] = [];
 
         for (const idealID of idealTileIDs) {
             const idealTile = this._tiles[idealID.key];
@@ -749,11 +748,10 @@ export class SourceCache extends Evented {
             // if ideal tile is not a fader - reset fade logic in case it is needed (prevents holes in the grid)
             if (!parentIsFader && !childIsFader && !idealTile.selfFading) {
                 idealTile.resetFadeLogic();
-                edgeCandidates.push(idealID);
             }
         }
 
-        this._updateFadingEdges(edgeCandidates, now);
+        this._updateFadingEdges(idealTileIDs, now);
     }
 
     /**
