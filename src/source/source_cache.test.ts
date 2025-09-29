@@ -871,10 +871,9 @@ describe('SourceCache.update', () => {
         sourceCache.update(transform);
         await Promise.resolve();
 
+        // ensure that the loaded child was retained and fading logic was applied
         for (const child of children) {
-            // ensure that the loaded child was retained
             expect(sourceCache._tiles).toHaveProperty(child.tileID.key);
-            // ensure that fading logic was applied
             expect(child.fadingBaseRole).toEqual(FadingRoles.Departing);
             expect(child).toHaveProperty('fadingParent');
         }
@@ -908,10 +907,9 @@ describe('SourceCache.update', () => {
         sourceCache.update(transform);
         await Promise.resolve();
 
+        // ensure that the loaded grandchild was retained and fading logic was applied
         for (const grandChild of grandChildren) {
-            // ensure that the loaded grandchild was retained
             expect(sourceCache._tiles).toHaveProperty(grandChild.tileID.key);
-            // ensure that fading logic was applied
             expect(grandChild.fadingBaseRole).toEqual(FadingRoles.Departing);
             expect(grandChild).toHaveProperty('fadingParent');
         }
@@ -939,17 +937,24 @@ describe('SourceCache.update', () => {
         await Promise.resolve();
         // ideal tiles will become fading parent when zooming in
         const parents: Tile[] = Object.values(sourceCache._tiles);
+        const parentKeys = new Set(parents.map(p => p.tileID.key));
 
         // zoom in 1 level - ideal tiles (new parent) should fade out
         transform.setZoom(11);
         sourceCache.update(transform);
         await Promise.resolve();
 
+        // ensure that the loaded parents were retained and fading logic was applied
         for (const parent of parents) {
-            // ensure that the loaded parent was retained
             expect(sourceCache._tiles).toHaveProperty(parent.tileID.key);
-            // ensure that fading logic was applied
             expect(parent.fadeEndTime).toBeGreaterThan(0);
+        }
+
+        // check incoming tiles
+        const incoming = Object.values(sourceCache._tiles).filter(tile => !parentKeys.has(tile.tileID.key));
+        for (const tile of incoming) {
+            expect(tile.fadingBaseRole).toEqual(FadingRoles.Incoming);
+            expect(tile).toHaveProperty('fadingParent');
         }
     });
 
@@ -975,17 +980,24 @@ describe('SourceCache.update', () => {
         await Promise.resolve();
         // ideal tiles will become fading grandparent when zooming in
         const grandParents: Tile[] = Object.values(sourceCache._tiles);
+        const grandParentKeys = new Set(grandParents.map(p => p.tileID.key));
 
         // zoom in 2 levels - ideal tiles (new grandparent) should fade out
         transform.setZoom(12);
         sourceCache.update(transform);
         await Promise.resolve();
 
+        // ensure that the loaded grandparents were retained and fading logic was applied
         for (const grandParent of grandParents) {
-            // ensure that the loaded grandparent was retained
             expect(sourceCache._tiles).toHaveProperty(grandParent.tileID.key);
-            // ensure that fading logic was applied
             expect(grandParent.fadeEndTime).toBeGreaterThan(0);
+        }
+
+        // check incoming tiles
+        const incoming = Object.values(sourceCache._tiles).filter(tile => !grandParentKeys.has(tile.tileID.key));
+        for (const tile of incoming) {
+            expect(tile.fadingBaseRole).toEqual(FadingRoles.Incoming);
+            expect(tile).toHaveProperty('fadingParent');
         }
     });
 });

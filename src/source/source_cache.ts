@@ -715,19 +715,16 @@ export class SourceCache extends Evented {
     }
 
     /**
-     * Designate fading bases and parents using a many-to-one relationship where the lower descendents fade in/out
+     * Designate fading bases and parents using a many-to-one relationship where the lower children fade in/out
      * with their parents. Raster shaders are not currently designed for a one-to-many fade relationship.
      *
      * Tiles that are candidates for fading out must be loaded and rendered tiles, as loading a tile to then
      * fade it out would not appear smoothly. The first source of truth for tile fading always starts at the
-     * ideal tile, which continually changes on map adjustment. First look for loaded parents to fade out as
-     * this is least expensive, then look for children to fade out. The state of the previously rendered ideal
+     * ideal tile, which continually changes on map adjustment. The state of the previously rendered ideal
      * tile plane indicates which direction to fade each part of the newer ideal plane (with varying z).
      *
      * For a pitched map, the back of the map can have decreasing zooms while the front can have increasing zooms.
-     * Fade logic must therefore adapt dynamically based on the previously rendered ideal tile set. Fading direction
-     * is ultimately determined by the current ideal set relative to the z location of the previously rendered tile
-     * in the adjacent generation to determine the direction in which that portion of the plane is moving.
+     * Fade logic must therefore adapt dynamically based on the previously rendered ideal tile set.
      */
     _updateFadingTiles(idealTileIDs: OverscaledTileID[], retain: {[_: string]: OverscaledTileID}) {
         const now = browser.now();
@@ -748,7 +745,7 @@ export class SourceCache extends Evented {
 
     /**
      * Many-to-one cross-fade. Set 4 ideal tiles as the fading base for a rendered parent tile
-     * as the fading partner. Here the parent is fading out and the ideal tile is fading in.
+     * as the fading parent. Here the parent is fading out and the ideal tile is fading in.
      *
      * Parent tile - fading out                                ■                                -- Fading Parent
      *                                   ┌──────────────┬──────┴───────┬──────────────┐
@@ -772,12 +769,14 @@ export class SourceCache extends Evented {
             const ancestorID = idealID.scaledTo(ancestorZ);
             const ancestorTile = this._getLoadedTile(ancestorID);
             if (ancestorTile) {
+                // set the cross-fade logic with the ideal tile as the base and ancestor tile as the parent
                 this._setCrossFadeLogic({
                     baseTile: idealTile,                    // fading in
                     baseFadingRole: FadingRoles.Incoming,
                     parentTile: ancestorTile,               // fading out
                     now
                 });
+
                 retain[ancestorID.key] = ancestorID;
                 return true;
             }
