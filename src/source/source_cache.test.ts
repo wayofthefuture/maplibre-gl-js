@@ -625,9 +625,9 @@ describe('SourceCache.update', () => {
             },
             interactive: false
         });
-        await new Promise(resolve => map.once('styledata', resolve));
+        await map.once('styledata');
 
-        const style: any = (map as any).style;
+        const style = (map as any).style;
         const sourceCache = style.sourceCaches['rasterSource'];
         const spy = vi.spyOn(sourceCache, '_updateFadingTiles');
         sourceCache._loadTile = () => {};
