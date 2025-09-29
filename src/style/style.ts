@@ -479,7 +479,7 @@ export class Style extends Evented {
 
             // for raster types let the source know fade duration for fade logic
             if (isRasterStyleLayer(styledLayer) && this.sourceCaches[styledLayer.source]) {
-                const rasterFadeDuration = layer.paint['raster-fade-duration'] || styledLayer.paint.get('raster-fade-duration');
+                const rasterFadeDuration = layer.paint?.['raster-fade-duration'] ?? styledLayer.paint.get('raster-fade-duration');
                 this.sourceCaches[styledLayer.source].setRasterFadeDuration(rasterFadeDuration);
             }
         }
