@@ -867,7 +867,7 @@ export class SourceCache extends Evented {
      * look cohesive with no gaps. Note that draw_raster determines fade priority, as many-to-one fade supersedes edge fading.
      */
     _updateFadingEdges(idealTileIDs: OverscaledTileID[], now: number) {
-        const idealEdgeIDs = this.getViewportEdgeTiles(idealTileIDs);
+        const idealEdgeIDs = this._getViewportEdgeTiles(idealTileIDs);
         for (const edgeID of idealEdgeIDs) {
             const sourceTile = this._tiles[edgeID.key];
             if (sourceTile && !sourceTile.hasData()) {
@@ -881,7 +881,7 @@ export class SourceCache extends Evented {
     /**
      * Determine edge tiles for a pitched tile plane containing varying zoom levels
      */
-    getViewportEdgeTiles(tileIDs: OverscaledTileID[]): OverscaledTileID[] {
+    _getViewportEdgeTiles(tileIDs: OverscaledTileID[]): OverscaledTileID[] {
         if (!tileIDs.length) return [];
 
         // set a common zoom for calculation (highest zoom) to reproject all tiles to this same zoom
