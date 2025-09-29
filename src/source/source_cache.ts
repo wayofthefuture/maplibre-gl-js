@@ -734,15 +734,14 @@ export class SourceCache extends Evented {
 
         for (const idealID of idealTileIDs) {
             const idealTile = this._tiles[idealID.key];
-
-            const hasFader =
-                this._updateFadingParent(idealTile, retain, now) ||
-                this._updateFadingChildren(idealTile, retain, now) ||
-                this._updateFadingSelf(idealTile, now);
-
-            // if ideal tile is not a fader reset logic in case it's needed (prevents holes in the grid)
-            if (!hasFader) {
-                idealTile.resetFadeLogic();
+            const parentIsFader = this._updateFadingParent(idealTile, retain, now);
+            const childIsFader = this._updateFadingChildren(idealTile, retain, now);
+            if (!parentIsFader && !childIsFader) {
+                const selfIsFader = this._updateFadingSelf(idealTile, now);
+                if (!selfIsFader) {
+                    // if ideal tile is not a fader - reset fade logic in case it is needed (prevents holes in the grid)
+                    idealTile.resetFadeLogic();
+                }
             }
         }
     }
