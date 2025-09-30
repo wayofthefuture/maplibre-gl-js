@@ -1761,7 +1761,6 @@ export class Style extends Evented {
     _updatePlacement(transform: ITransform, showCollisionBoxes: boolean, fadeDuration: number, crossSourceCollisions: boolean, forceFullPlacement: boolean = false) {
         let symbolBucketsChanged = false;
         let placementCommitted = false;
-        let hasSymbol = false;
 
         const layerTiles = {};
 
@@ -1778,7 +1777,6 @@ export class Style extends Evented {
 
             const layerBucketsChanged = this.crossTileSymbolIndex.addLayer(styleLayer, layerTiles[styleLayer.source], transform.center.lng);
             symbolBucketsChanged = symbolBucketsChanged || layerBucketsChanged;
-            hasSymbol = true;
         }
         this.crossTileSymbolIndex.pruneUnusedLayers(this._order);
 
@@ -1796,12 +1794,14 @@ export class Style extends Evented {
         }
 
         if (this.pauseablePlacement.isDone()) {
-            // the last placement finished running, but the next one hasn’t
-            // started yet because of the `stillRecent` check immediately
-            // above, so mark it stale to ensure that we request another
-            // render frame
-            this.placement.setStale();
-        } else {
+            // The last placement finished, but we’re still within the `stillRecent` grace
+            // period. Once it expires, mark stale to trigger another frame. Skip marking
+            // stale during the grace period to avoid dozens of unnecessary re-renders.
+            if (!this.placement.stillRecent(browser.now(), transform.zoom)) {
+                this.placement.setStale();
+            }
+        }
+        else {
             this.pauseablePlacement.continuePlacement(this._order, this._layers, layerTiles);
 
             if (this.pauseablePlacement.isDone()) {
@@ -1826,7 +1826,7 @@ export class Style extends Evented {
         }
 
         // needsRender is false when we have just finished a placement that didn't change the visibility of any symbols
-        const needsRerender = !this.pauseablePlacement.isDone() || (hasSymbol && this.placement.hasTransitions(browser.now()));
+        const needsRerender = !this.pauseablePlacement.isDone() || this.placement.hasTransitions(browser.now());
         return needsRerender;
     }
 
