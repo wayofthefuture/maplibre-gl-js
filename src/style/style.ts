@@ -1761,6 +1761,7 @@ export class Style extends Evented {
     _updatePlacement(transform: ITransform, showCollisionBoxes: boolean, fadeDuration: number, crossSourceCollisions: boolean, forceFullPlacement: boolean = false) {
         let symbolBucketsChanged = false;
         let placementCommitted = false;
+        let hasSymbol = false;
 
         const layerTiles = {};
 
@@ -1777,6 +1778,7 @@ export class Style extends Evented {
 
             const layerBucketsChanged = this.crossTileSymbolIndex.addLayer(styleLayer, layerTiles[styleLayer.source], transform.center.lng);
             symbolBucketsChanged = symbolBucketsChanged || layerBucketsChanged;
+            hasSymbol = true;
         }
         this.crossTileSymbolIndex.pruneUnusedLayers(this._order);
 
@@ -1824,7 +1826,7 @@ export class Style extends Evented {
         }
 
         // needsRender is false when we have just finished a placement that didn't change the visibility of any symbols
-        const needsRerender = !this.pauseablePlacement.isDone() || this.placement.hasTransitions(browser.now());
+        const needsRerender = !this.pauseablePlacement.isDone() || (hasSymbol && this.placement.hasTransitions(browser.now()));
         return needsRerender;
     }
 
