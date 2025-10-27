@@ -447,7 +447,7 @@ describe('mergeSourceDiffs', () => {
         } satisfies GeoJSONSourceDiff;
 
         const merged = mergeSourceDiffs(diff1, diff2);
-        expect(merged.update).toHaveLength(0);
+        expect(merged.update).not.toBeDefined;
         expect(merged.remove).toHaveLength(1);
     });
 
@@ -461,8 +461,8 @@ describe('mergeSourceDiffs', () => {
         } satisfies GeoJSONSourceDiff;
 
         const merged = mergeSourceDiffs(diff1, diff2);
-        expect(merged.add).toHaveLength(0);
-        expect(merged.remove).toHaveLength(0);
+        expect(merged.add).not.toBeDefined;
+        expect(merged.remove).not.toBeDefined;
     });
 
     test('merges two diffs remove feature then add', () => {
@@ -480,11 +480,11 @@ describe('mergeSourceDiffs', () => {
 
         const merged1 = mergeSourceDiffs(diff1, diff2);
         expect(merged1.add).toHaveLength(1);
-        expect(merged1.remove).toHaveLength(0);
+        expect(merged1.remove).not.toBeDefined;
 
         const merged2 = mergeSourceDiffs(merged1, diff3);
-        expect(merged2.add).toHaveLength(0);
-        expect(merged2.remove).toHaveLength(0);
+        expect(merged2.add).not.toBeDefined;
+        expect(merged2.remove).not.toBeDefined;
     });
 
     test('merges diff with empty', () => {
