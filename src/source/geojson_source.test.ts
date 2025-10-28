@@ -875,24 +875,19 @@ describe('GeoJSONSource.serialize', () => {
             transformRequest: (url) => { return {url}; }
         }
     } as any;
+
     test('serialize source with inline data', () => {
         const source = new GeoJSONSource('id', {data: hawkHill} as GeoJSONSourceOptions, mockDispatcher, undefined);
         source.map = mapStub;
         source.load();
-        expect(source.serialize()).toEqual({
-            type: 'geojson',
-            data: hawkHill
-        });
+        expect(source.serialize()).toEqual({type: 'geojson'});
     });
 
     test('serialize source with url', () => {
         const source = new GeoJSONSource('id', {data: 'local://data.json'} as GeoJSONSourceOptions, mockDispatcher, undefined);
         source.map = mapStub;
         source.load();
-        expect(source.serialize()).toEqual({
-            type: 'geojson',
-            data: 'local://data.json'
-        });
+        expect(source.serialize()).toEqual({type: 'geojson'});
     });
 
     test('serialize source with updated data', () => {

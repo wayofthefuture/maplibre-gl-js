@@ -120,7 +120,6 @@ export class GeoJSONSource extends Evented implements Source {
 
     isTileClipped: boolean;
     reparseOverscaled: boolean;
-    _data: GeoJSON.GeoJSON | string | undefined;
     _options: GeoJSONSourceInternalOptions;
     workerOptions: GeoJSONWorkerOptions;
     map: Map;
@@ -152,7 +151,6 @@ export class GeoJSONSource extends Evented implements Source {
         this.actor = dispatcher.getActor();
         this.setEventedParent(eventedParent);
 
-        this._data = options.data;
         this._options = extend({}, options);
 
         this._collectResourceTiming = options.collectResourceTiming;
@@ -230,7 +228,6 @@ export class GeoJSONSource extends Evented implements Source {
      * @param data - A GeoJSON data object or a URL to one. The latter is preferable in the case of large GeoJSON files.
      */
     setData(data: GeoJSON.GeoJSON | string): this {
-        this._data = data;
         this._pendingWorkerUpdate = {data};
         this._updateWorkerData();
         return this;
@@ -422,8 +419,6 @@ export class GeoJSONSource extends Evented implements Source {
                 return;
             }
 
-            this._data = result.data;
-
             let resourceTiming: PerformanceResourceTiming[] = null;
             if (result.resourceTiming && result.resourceTiming[this.id]) {
                 resourceTiming = result.resourceTiming[this.id].slice(0);
@@ -505,7 +500,7 @@ export class GeoJSONSource extends Evented implements Source {
     serialize(): GeoJSONSourceSpecification {
         return extend({}, this._options, {
             type: this.type,
-            data: this._data
+            data: this._pendingWorkerUpdate.data
         });
     }
 

@@ -61,6 +61,7 @@ type GeoJSONIndex = ReturnType<typeof geojsonvt> | Supercluster;
  * For a full example, see [mapbox-gl-topojson](https://github.com/developmentseed/mapbox-gl-topojson).
  */
 export class GeoJSONWorkerSource extends VectorTileWorkerSource {
+    _data: GeoJSON.GeoJSON | undefined;
     /**
      * The actual GeoJSON takes some time to load (as there may be a need to parse a diff, or to apply filters, or the
      * data may even need to be loaded via a URL). This promise resolves with a ready-to-be-consumed GeoJSON which is
@@ -134,13 +135,13 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
                 this._pendingData = this.loadAndProcessGeoJSON(params, this._pendingRequest);
             }
 
-            const data = await this._pendingData;
+            this._data = await this._pendingData;
 
-            this._geoJSONIndex = this._createGeoJSONIndex(data, params);
+            this._geoJSONIndex = this._createGeoJSONIndex(this._data, params);
 
             this.loaded = {};
 
-            const result = {data} as GeoJSONWorkerSourceLoadDataResult;
+            const result: GeoJSONWorkerSourceLoadDataResult = {};
             if (perf) {
                 const resourceTimingData = perf.finish();
                 // it's necessary to eval the result of getEntriesByName() here via parse/stringify
@@ -166,7 +167,7 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
      * @returns a promise which is resolved with the source's actual GeoJSON
      */
     async getData(): Promise<GeoJSON.GeoJSON> {
-        return this._pendingData;
+        return this._data;
     }
 
     /**
