@@ -213,10 +213,12 @@ export class TileCache {
 
 export class BoundedLRUCache<K, V> {
     private maxEntries: number;
+    private onRemove: (value: V) => void;
     private map: Map<K, V>;
 
-    constructor(maxEntries: number) {
+    constructor(maxEntries: number, onRemove: (value: V) => void) {
         this.maxEntries = maxEntries;
+        this.onRemove = onRemove;
         this.map = new Map();
     }
 
@@ -232,13 +234,31 @@ export class BoundedLRUCache<K, V> {
 
     set(key: K, value: V): void {
         if (this.map.has(key)) {
-            this.map.delete(key);
+            this.remove(key);
         } else if (this.map.size >= this.maxEntries) {
-            // Delete oldest
+            // Remove oldest
             const oldestKey = this.map.keys().next().value;
-            this.map.delete(oldestKey);
+            this.remove(oldestKey);
         }
         this.map.set(key, value);
+    }
+
+    remove(key: K): void {
+        const value = this.map.get(key);
+        this.map.delete(key);
+        this.onRemove?.(value);
+    }
+
+    setMaxSize(maxEntries: number): void {
+        this.maxEntries = maxEntries;
+    }
+
+    filter(func: (value: V) => boolean) {
+        for (const [key, value] of this.map.entries()) {
+            if (!func(value)) {
+                this.remove(key);
+            }
+        }
     }
 
     clear(): void {

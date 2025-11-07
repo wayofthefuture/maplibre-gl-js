@@ -1,6 +1,7 @@
 import {sortTileIDs} from './tile_id';
 import type {OverscaledTileID} from './tile_id';
 import type {Tile} from './tile';
+import type {Source} from '../source/source';
 
 export class TileManagerState  {
     _tiles: Record<string, Tile> = {};

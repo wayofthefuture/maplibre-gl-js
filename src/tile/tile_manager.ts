@@ -840,8 +840,8 @@ export class TileManager extends Evented {
         if (!tile) return;
 
         tile.uses--;
-        this._state.removeTileByID(id);
         this._clearTileReloadTimer(id);
+        this._state.removeTileByID(id);
 
         if (tile.uses > 0) return;
 
