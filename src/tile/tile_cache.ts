@@ -2,74 +2,41 @@ import type {OverscaledTileID} from './tile_id';
 import type {Tile} from './tile';
 
 export class BoundedLRUTileCache {
-    private maxEntries: number;
-    private onRemove: (value: Tile) => void;
-    private map: Map<string, Tile>;
+    private cache: BoundedLRUCache<string, Tile>;
 
     constructor(maxEntries: number, onRemove?: (tile: Tile) => void) {
-        this.maxEntries = maxEntries;
-        this.onRemove = onRemove;
-        this.map = new Map();
+        this.cache = new BoundedLRUCache(maxEntries, onRemove);
     }
 
-    _getKey(tileID: OverscaledTileID): string {
+    private getKey(tileID: OverscaledTileID): string {
         return tileID.wrapped().key;
     }
 
     get(tileID: OverscaledTileID): Tile | undefined {
-        const key = this._getKey(tileID);
-
-        const tile = this.map.get(key);
-        if (tile !== undefined) {
-            // Move key to end (most recently used)
-            this.map.delete(key);
-            this.map.set(key, tile);
-        }
-
+        const tile = this.cache.get(this.getKey(tileID));
         // set the tileID because the cached tile could have had a different wrap value
-        tile.tileID = tileID;
-
+        if (tile) tile.tileID = tileID;
         return tile;
     }
 
     set(tileID: OverscaledTileID, tile: Tile) {
-        const key = this._getKey(tileID);
-
-        if (this.map.has(key)) {
-            this.remove(tileID);
-        } else if (this.map.size >= this.maxEntries) {
-            // Remove oldest
-            const oldestKey = this.map.keys().next().value;
-            const oldestTile = this.map.get(oldestKey);
-            this.remove(oldestTile.tileID);
-        }
-
-        this.map.set(key, tile);
+        this.cache.set(this.getKey(tileID), tile);
     }
 
     remove(tileID: OverscaledTileID) {
-        const key = this._getKey(tileID);
-        const value = this.map.get(key);
-        if (!value) return;
-
-        this.map.delete(key);
-        this.onRemove?.(value);
+        this.cache.remove(this.getKey(tileID));
     }
 
     setMaxSize(maxEntries: number) {
-        this.maxEntries = maxEntries;
+        this.cache.setMaxSize(maxEntries);
     }
 
     filter(func: (tile: Tile) => boolean) {
-        for (const tile of this.map.values()) {
-            if (!func(tile)) {
-                this.remove(tile.tileID);
-            }
-        }
+        this.cache.filter(func);
     }
 
     clear() {
-        this.map.clear();
+        this.cache.clear();
     }
 }
 
@@ -94,7 +61,7 @@ export class BoundedLRUCache<K, V> {
         return value;
     }
 
-    set(key: K, value: V): void {
+    set(key: K, value: V) {
         if (this.map.has(key)) {
             this.remove(key);
         } else if (this.map.size >= this.maxEntries) {
@@ -105,13 +72,14 @@ export class BoundedLRUCache<K, V> {
         this.map.set(key, value);
     }
 
-    remove(key: K): void {
+    remove(key: K) {
         const value = this.map.get(key);
+        if (!value) return;
         this.map.delete(key);
         this.onRemove?.(value);
     }
 
-    setMaxSize(maxEntries: number): void {
+    setMaxSize(maxEntries: number) {
         this.maxEntries = maxEntries;
     }
 
@@ -123,7 +91,7 @@ export class BoundedLRUCache<K, V> {
         }
     }
 
-    clear(): void {
+    clear() {
         this.map.clear();
     }
 }
