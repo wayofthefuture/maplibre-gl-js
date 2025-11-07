@@ -3,7 +3,7 @@ import {create as createSource} from '../source/source';
 import {VectorTileStrategy, type TileResult} from './vector_tile_strategy';
 import {RasterTileStrategy} from './raster_tile_strategy';
 import {TileManagerState} from './tile_manager_state';
-import {TileCache} from './tile_cache';
+import {BoundedLRUTileCache} from './tile_cache';
 import {OverscaledTileID, sortTileIDs} from './tile_id';
 import {Tile} from './tile';
 import {type Context} from '../gl/context';
@@ -95,7 +95,7 @@ export class TileManager extends Evented {
     _source: Source;
     _state: TileManagerState;
     _strategy: TileManagerStrategy;
-    _cache: TileCache;
+    _cache: BoundedLRUTileCache;
 
     /**
      * @internal
@@ -149,7 +149,7 @@ export class TileManager extends Evented {
 
         this._source = createSource(id, options, dispatcher, this);
         this._state = new TileManagerState();
-        this._cache = new TileCache(0, tile => this._unloadTile(tile));
+        this._cache = new BoundedLRUTileCache(0, tile => this._unloadTile(tile));
 
         // Set the stragy for this tile manager to either raster or vector tiles.
         this._strategy = options.type === 'raster'
@@ -211,7 +211,7 @@ export class TileManager extends Evented {
         return this._state;
     }
 
-    getCache(): TileCache {
+    getCache(): BoundedLRUTileCache {
         return this._cache;
     }
 
@@ -320,8 +320,8 @@ export class TileManager extends Evented {
             return;
         }
 
-        // Reset the tile cache
-        this._cache.reset();
+        // Clear the tile cache
+        this._cache.clear();
 
         const tiles = this._state.getTiles();
         for (const id in tiles) {
@@ -724,35 +724,42 @@ export class TileManager extends Evented {
      */
     _addTile(tileID: OverscaledTileID): Tile {
         let tile = this._state.getTileByID(tileID.key);
-        if (tile)
-            return tile;
+        if (tile) return tile;
 
         // Check the cache for the tile first
-        tile = this._cache.getAndRemove(tileID);
-        if (tile) {
-            //allow strategy to process the tile when retrieved from cache
-            this._strategy.onTileRetrievedFromCache?.(tile);
+        tile = this._getTileFromCache(tileID);
 
-            // set timer for the reloading of the tile upon expiration
-            this._setTileReloadTimer(tileID.key, tile);
-
-            // set the tileID because the cached tile could have had a different wrap value
-            tile.tileID = tileID;
-            this._featureState.initializeTileState(tile, this.map ? this.map.painter : null);
-        }
-
-        const cached = tile;
-
+        // If the tile is not in the cache, create the new tile and load it
+        let tileLoading = false;
         if (!tile) {
+            tileLoading = true;
             tile = new Tile(tileID, this._source.tileSize * tileID.overscaleFactor());
             this._loadTile(tile, tileID.key, tile.state);
         }
 
         tile.uses++;
         this._state.addTile(tile);
-        if (!cached) {
+        if (tileLoading) {
             this._source.fire(new Event('dataloading', {tile, coord: tile.tileID, dataType: 'source'}));
         }
+
+        return tile;
+    }
+
+    _getTileFromCache(tileID: OverscaledTileID): Tile | null {
+        const tile = this._cache.get(tileID);
+        if (!tile) return null;
+
+        // Tile is expired, remove it from the cache
+        if (tile.expirationTime <= now()) {
+            this._cache.remove(tileID);
+            return null;
+        }
+
+        this._strategy.onTileRetrievedFromCache?.(tile);
+        // Set timer for the reloading of the tile upon expiration
+        this._setTileReloadTimer(tileID.key, tile);
+        this._featureState.initializeTileState(tile, this.map ? this.map.painter : null);
 
         return tile;
     }
@@ -828,8 +835,8 @@ export class TileManager extends Evented {
         for (const id in this._state.getTiles()) {
             this.removeTile(id);
         }
-        // Reset the tile cache
-        this._cache.reset();
+        // Clear the tile cache
+        this._cache.clear();
     }
 
     /**
@@ -847,7 +854,7 @@ export class TileManager extends Evented {
 
         if (tile.hasData() && tile.state !== 'reloading') {
             // Cache the removed tile
-            this._cache.add(tile.tileID, tile, tile.getExpiryTimeout());
+            this._cache.set(tile.tileID, tile);
         } else {
             tile.aborted = true;
             this._abortTile(tile);
