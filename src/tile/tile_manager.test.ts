@@ -241,8 +241,7 @@ describe('TileManager.addTile', () => {
         tileManager._addTile(tileID);
 
         expect(tileManager._timers[id]).toBeTruthy();
-        expect(cache.get(tileID.key)).toBeFalsy();
-
+        expect(cache.get(tileID.key)).toBeTruthy();
     });
 
     test('does not reuse wrapped tile', () => {

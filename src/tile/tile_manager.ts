@@ -746,31 +746,43 @@ export class TileManager extends Evented {
         return tile;
     }
 
+    /**
+     * Get a tile from the cache using a wrapped tileID (wrap = 0), then re-apply
+     * the provided tileID's wrap value to the tile.
+     */
     _getTileFromCache(tileID: OverscaledTileID): Tile | null {
         const cacheKey = this._getCacheKey(tileID);
 
         const tile = this._cache.get(cacheKey);
         if (!tile) return null;
 
-        // Tile is expired, remove it from the cache
-        if (tile.expirationTime <= now()) {
+        // If tile is expired, remove it from the cache
+        if (tile.isExpired()) {
             this._cache.remove(cacheKey);
             return null;
         }
 
-        // Allow strategy to process the tile when retrieved from cache
-        this._strategy.onTileRetrievedFromCache?.(tile);
-
-        // Set timer for the reloading of the tile upon expiration
-        this._setTileReloadTimer(tileID.key, tile);
-
-        // Set the tileID because cached tile could have a different wrap
+        // Apply the provided wrap to the cached tile (could have a different wrap)
         tile.tileID = tileID;
+
+        this._strategy.onTileRetrievedFromCache?.(tile);
+        this._setTileReloadTimer(tileID.key, tile);
         this._featureState.initializeTileState(tile, this.map ? this.map.painter : null);
 
         return tile;
     }
 
+    /**
+     * Add a tile to the cache using a wrapped tileID (wrap = 0)
+     */
+    _addTileToCache(tile: Tile) {
+        const cacheKey = this._getCacheKey(tile.tileID);
+        this._cache.set(cacheKey, tile);
+    }
+
+    /**
+     * Get the cache key for a tile using a wrapped tileID (wrap = 0)
+     */
     _getCacheKey(tileID: OverscaledTileID): string {
         return tileID.wrapped().key;
     }
@@ -865,8 +877,7 @@ export class TileManager extends Evented {
 
         if (tile.hasData() && tile.state !== 'reloading') {
             // Cache the removed tile
-            const cacheKey = this._getCacheKey(tile.tileID);
-            this._cache.set(cacheKey, tile);
+            this._addTileToCache(tile);
         } else {
             tile.aborted = true;
             this._abortTile(tile);
