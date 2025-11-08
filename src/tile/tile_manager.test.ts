@@ -172,7 +172,6 @@ describe('TileManager.addTile', () => {
 
         const tr = new MercatorTransform();
         tr.resize(512, 512);
-        tileManager._updateCacheSize(tr);
         tileManager._addTile(tileID);
         tileManager.removeTile(tileID.key);
         tileManager._addTile(tileID);
@@ -192,7 +191,6 @@ describe('TileManager.addTile', () => {
 
         const tr = new MercatorTransform();
         tr.resize(512, 512);
-        tileManager._updateCacheSize(tr);
 
         const tile = tileManager._addTile(tileID);
         const updateFeaturesSpy = vi.spyOn(tile, 'setFeatureState');
@@ -221,7 +219,6 @@ describe('TileManager.addTile', () => {
 
         const tr = new MercatorTransform();
         tr.resize(512, 512);
-        tileManager._updateCacheSize(tr);
         const cache = tileManager.getCache();
 
         const id = tileID.key;
@@ -368,7 +365,6 @@ describe('TileManager.removeTile', () => {
 
         const tr = new MercatorTransform();
         tr.resize(512, 512);
-        tileManager._updateCacheSize(tr);
 
         tileManager._addTile(tileID);
         tileManager.removeTile(tileID.key);

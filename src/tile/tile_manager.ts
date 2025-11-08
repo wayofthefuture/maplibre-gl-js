@@ -11,13 +11,12 @@ import Point from '@mapbox/point-geometry';
 import {now} from '../util/time_control';
 import {SourceFeatureState} from '../source/source_state';
 import {ErrorEvent, Event, Evented} from '../util/evented';
-import {config} from '../util/config';
 
 import type {Source} from '../source/source';
 import type {Map} from '../ui/map';
 import type {Style} from '../style/style';
 import type {Dispatcher} from '../util/dispatcher';
-import type {IReadonlyTransform, ITransform} from '../geo/transform_interface';
+import type {ITransform} from '../geo/transform_interface';
 import type {TileState} from './tile';
 import type {TileReloadStrategy} from './tile_reload_strategy';
 import type {ICanonicalTileID, SourceSpecification} from '@maplibre/maplibre-gl-style-spec';
@@ -108,8 +107,6 @@ export class TileManager extends Evented {
     _sourceErrored: boolean;
     _prevLng: number;
     _timers: Record<string, ReturnType<typeof setTimeout>>;
-    _maxTileCacheSize: number;
-    _maxTileCacheZoomLevels: number;
     _paused: boolean;
     _shouldReloadOnResume: boolean;
     transform: ITransform;
@@ -157,18 +154,16 @@ export class TileManager extends Evented {
             : new VectorTileStrategy(this._state);
 
         this._timers = {};
-        this._maxTileCacheSize = null;
-        this._maxTileCacheZoomLevels = null;
-
         this._featureState = new SourceFeatureState();
         this._didEmitContent = false;
         this._updated = false;
     }
 
     onAdd(map: Map) {
-        this.map = map;
-        this._maxTileCacheSize = map ? map._maxTileCacheSize : null;
-        this._maxTileCacheZoomLevels = map ? map._maxTileCacheZoomLevels : null;
+        if (map) {
+            this.map = map;
+            this._cache.setMaxSize(map._maxTileCacheSize);
+        }
         if (this._source && this._source.onAdd) {
             this._source.onAdd(map);
         }
@@ -524,27 +519,6 @@ export class TileManager extends Evented {
         }
     }
 
-    /**
-     * Resizes the tile cache based on the current viewport's size
-     * or the maxTileCacheSize option passed during map creation
-     *
-     * Larger viewports use more tiles and need larger caches. Larger viewports
-     * are more likely to be found on devices with more memory and on pages where
-     * the map is more important.
-     */
-    _updateCacheSize(transform: IReadonlyTransform) {
-        const widthInTiles = Math.ceil(transform.width / this._source.tileSize) + 1;
-        const heightInTiles = Math.ceil(transform.height / this._source.tileSize) + 1;
-        const approxTilesInView = widthInTiles * heightInTiles;
-        const commonZoomRange = this._maxTileCacheZoomLevels === null ?
-            config.MAX_TILE_CACHE_ZOOM_LEVELS : this._maxTileCacheZoomLevels;
-        const viewDependentMaxSize = Math.floor(approxTilesInView * commonZoomRange);
-        const maxSize = typeof this._maxTileCacheSize === 'number' ?
-            Math.min(this._maxTileCacheSize, viewDependentMaxSize) : viewDependentMaxSize;
-
-        this._cache.setMaxSize(maxSize);
-    }
-
     _handleWrapJump(lng: number) {
         // On top of the regular z/x/y values, TileIDs have a `wrap` value that specify
         // which copy of the world the tile belongs to. For example, at `lng: 10` you
@@ -584,7 +558,6 @@ export class TileManager extends Evented {
         this.transform = transform;
         this.terrain = terrain;
 
-        this._updateCacheSize(transform);
         this._handleWrapJump(this.transform.center.lng);
 
         let idealTileIDs: OverscaledTileID[];

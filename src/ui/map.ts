@@ -250,10 +250,10 @@ export type MapOptions = {
      */
     renderWorldCopies?: boolean;
     /**
-     * The maximum number of tiles stored in the tile cache for a given source. If omitted, the cache will be dynamically sized based on the current viewport which can be set using `maxTileCacheZoomLevels` constructor options.
-     * @defaultValue null
+     * The maximum number of tiles stored in the tile cache for a given source.
+     * @defaultValue 1000
      */
-    maxTileCacheSize?: number | null;
+    maxTileCacheSize?: number;
     /**
      * The maximum number of zoom levels for which to store tiles for a given source. Tile cache dynamic size is calculated by multiplying `maxTileCacheZoomLevels` with the approximate number of tiles in the viewport for a given source.
      * @defaultValue 5
@@ -461,7 +461,7 @@ const defaultOptions: Readonly<Partial<MapOptions>> = {
     roll: 0,
 
     renderWorldCopies: true,
-    maxTileCacheSize: null,
+    maxTileCacheSize: 1000,
     maxTileCacheZoomLevels: config.MAX_TILE_CACHE_ZOOM_LEVELS,
     transformRequest: null,
     transformCameraUpdate: null,
@@ -529,8 +529,7 @@ export class Map extends Camera {
     _repaint: boolean;
     _vertices: boolean;
     _canvas: HTMLCanvasElement;
-    _maxTileCacheSize: number | null;
-    _maxTileCacheZoomLevels: number;
+    _maxTileCacheSize: number;
     _frameRequest: AbortController;
     _styleDirty: boolean;
     _sourcesDirty: boolean;
@@ -700,7 +699,6 @@ export class Map extends Camera {
 
         this._interactive = resolvedOptions.interactive;
         this._maxTileCacheSize = resolvedOptions.maxTileCacheSize;
-        this._maxTileCacheZoomLevels = resolvedOptions.maxTileCacheZoomLevels;
         this._canvasContextAttributes = {...resolvedOptions.canvasContextAttributes};
         this._trackResize = resolvedOptions.trackResize === true;
         this._bearingSnap = resolvedOptions.bearingSnap;
