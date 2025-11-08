@@ -57,10 +57,13 @@ export class BoundedLRUCache<K, V> {
     }
 
     clear() {
+        if (!this.onRemove) {
+            this.map.clear();
+            return;
+        }
+
         const values = Array.from(this.map.values());
         this.map.clear();
-        if (!this.onRemove) return;
-
         for (const value of values) {
             this.onRemove(value);
         }
