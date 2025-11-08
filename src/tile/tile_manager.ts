@@ -758,8 +758,14 @@ export class TileManager extends Evented {
             return null;
         }
 
+        // Allow strategy to process the tile when retrieved from cache
         this._strategy.onTileRetrievedFromCache?.(tile);
+
+        // Set timer for the reloading of the tile upon expiration
         this._setTileReloadTimer(tileID.key, tile);
+
+        // Set the tileID because cached tile could have a different wrap
+        tile.tileID = tileID;
         this._featureState.initializeTileState(tile, this.map ? this.map.painter : null);
 
         return tile;

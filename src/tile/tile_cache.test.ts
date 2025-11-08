@@ -112,7 +112,7 @@ describe('BoundedLRUCache', () => {
 
 describe('BoundedLRUCache', () => {
     test('evicts least-recently-used item when capacity exceeded', () => {
-        const cache = new BoundedLRUCache<string, Tile><string, number>(2);
+        const cache = new BoundedLRUCache<string, number>(2);
 
         cache.set('a', 1);
         cache.set('b', 2);
@@ -129,7 +129,7 @@ describe('BoundedLRUCache', () => {
     });
 
     test('setting an existing key updates value and makes it most-recently-used', () => {
-        const cache = new BoundedLRUCache<string, Tile><string, number>(2);
+        const cache = new BoundedLRUCache<string, number>(2);
 
         cache.set('a', 1);
         cache.set('b', 2);
@@ -145,7 +145,7 @@ describe('BoundedLRUCache', () => {
     });
 
     test('capacity 1 evicts previous entry on new set', () => {
-        const cache = new BoundedLRUCache<string, Tile><string, string>(1);
+        const cache = new BoundedLRUCache<string, string>(1);
 
         cache.set('x', 'first');
         expect(cache.get('x')).toBe('first');
@@ -156,7 +156,7 @@ describe('BoundedLRUCache', () => {
     });
 
     test('clear removes all entries', () => {
-        const cache = new BoundedLRUCache<string, Tile><number, string>(3);
+        const cache = new BoundedLRUCache<number, string>(3);
         cache.set(1, 'one');
         cache.set(2, 'two');
 
