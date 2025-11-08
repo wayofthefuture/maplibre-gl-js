@@ -262,7 +262,64 @@ describe('TileManager.addTile', () => {
         expect(load).toBe(2);
         expect(add).toBe(2);
         expect(t1).not.toBe(t2);
+    });
 
+    test('uses cached tile from a different wrap and applies new wrap', () => {
+        const wrappedId = new OverscaledTileID(0, 0, 0, 0, 0);
+        const unwrappedId = new OverscaledTileID(0, 1, 0, 0, 0);
+        let load = 0;
+
+        const tileManager = createTileManager();
+        tileManager.getSource().loadTile = async (tile) => {
+            tile.state = 'loaded';
+            load++;
+        };
+
+        const wrappedTile = tileManager._addTile(wrappedId);
+        tileManager.removeTile(wrappedId.key);
+        const unwrappedTile = tileManager._addTile(unwrappedId);
+
+        expect(load).toBe(1);  // cache was used
+        expect(unwrappedTile.tileID.wrap).toBe(1);
+        expect(unwrappedTile).toBe(wrappedTile);
+    });
+
+    test('applies wrap after retrieving a tile from the cache', () => {
+        const wrappedId = new OverscaledTileID(0, 0, 0, 0, 0);
+        const unwrappedId = new OverscaledTileID(0, 1, 0, 0, 0);
+        let load = 0;
+
+        const tileManager = createTileManager();
+        tileManager.getSource().loadTile = async (tile) => {
+            tile.state = 'loaded';
+            load++;
+        };
+
+        const wrappedTile = tileManager._addTile(wrappedId);
+        tileManager.removeTile(wrappedId.key);
+        const cachedTile = tileManager._getTileFromCache(unwrappedId);
+
+        expect(load).toBe(1);
+        expect(cachedTile).toBe(wrappedTile);
+        expect(cachedTile.tileID.wrap).toBe(1);
+    });
+
+    test('discards expired tiles retrieved from cache', () => {
+        const tileID = new OverscaledTileID(0, 0, 0, 0, 0);
+        let load = 0;
+
+        const tileManager = createTileManager();
+        tileManager.getSource().loadTile = async (tile) => {
+            tile.state = 'loaded';
+            load++;
+        };
+
+        tileManager._addTile(tileID);
+        tileManager.getTile(tileID).expirationTime = now() - 100;
+        tileManager.removeTile(tileID.key);
+        tileManager._addTile(tileID);
+
+        expect(load).toBe(2);  // tile was loaded again
     });
 
     test('should load tiles with identical overscaled Z but different canonical Z', () => {

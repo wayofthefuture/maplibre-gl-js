@@ -730,16 +730,16 @@ export class TileManager extends Evented {
         tile = this._getTileFromCache(tileID);
 
         // If the tile is not in the cache, create the new tile and load it
-        let tileLoading = false;
+        let loading = false;
         if (!tile) {
-            tileLoading = true;
+            loading = true;
             tile = new Tile(tileID, this._source.tileSize * tileID.overscaleFactor());
             this._loadTile(tile, tileID.key, tile.state);
         }
 
         tile.uses++;
         this._state.addTile(tile);
-        if (tileLoading) {
+        if (loading) {
             this._source.fire(new Event('dataloading', {tile, coord: tile.tileID, dataType: 'source'}));
         }
 
@@ -762,7 +762,7 @@ export class TileManager extends Evented {
             return null;
         }
 
-        // Apply the provided wrap to the cached tile (could have a different wrap)
+        // Apply the provided wrap to the cached tile (which could have a different wrap)
         tile.tileID = tileID;
 
         this._strategy.onTileRetrievedFromCache?.(tile);
