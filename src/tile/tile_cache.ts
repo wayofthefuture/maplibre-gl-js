@@ -1,51 +1,10 @@
-import type {OverscaledTileID} from './tile_id';
-import type {Tile} from './tile';
-
-export class BoundedLRUTileCache {
-    private cache: BoundedLRUCache<string, Tile>;
-
-    constructor(maxEntries: number, onRemove?: (tile: Tile) => void) {
-        this.cache = new BoundedLRUCache(maxEntries, onRemove);
-    }
-
-    private getKey(tileID: OverscaledTileID): string {
-        return tileID.wrapped().key;
-    }
-
-    get(tileID: OverscaledTileID): Tile | undefined {
-        const tile = this.cache.get(this.getKey(tileID));
-        // set the tileID because the cached tile could have had a different wrap value
-        if (tile) tile.tileID = tileID;
-        return tile;
-    }
-
-    set(tileID: OverscaledTileID, tile: Tile) {
-        this.cache.set(this.getKey(tileID), tile);
-    }
-
-    remove(tileID: OverscaledTileID) {
-        this.cache.remove(this.getKey(tileID));
-    }
-
-    setMaxSize(maxEntries: number) {
-        this.cache.setMaxSize(maxEntries);
-    }
-
-    filter(func: (tile: Tile) => boolean) {
-        this.cache.filter(func);
-    }
-
-    clear() {
-        this.cache.clear();
-    }
-}
 
 export class BoundedLRUCache<K, V> {
     private maxEntries: number;
     private onRemove: (value: V) => void;
     private map: Map<K, V>;
 
-    constructor(maxEntries: number, onRemove: (value: V) => void) {
+    constructor(maxEntries: number, onRemove?: (value: V) => void) {
         this.maxEntries = maxEntries;
         this.onRemove = onRemove;
         this.map = new Map();
@@ -72,15 +31,12 @@ export class BoundedLRUCache<K, V> {
         this.map.set(key, value);
     }
 
-    remove(key: K) {
-        const value = this.map.get(key);
-        if (!value) return;
-        this.map.delete(key);
-        this.onRemove?.(value);
-    }
-
     setMaxSize(maxEntries: number) {
         this.maxEntries = maxEntries;
+        while (this.map.size > this.maxEntries) {
+            const oldestKey = this.map.keys().next().value;
+            this.remove(oldestKey);
+        }
     }
 
     filter(func: (value: V) => boolean) {
@@ -91,7 +47,24 @@ export class BoundedLRUCache<K, V> {
         }
     }
 
+    remove(key: K) {
+        const value = this.map.get(key);
+        if (!value) return;
+        this.map.delete(key);
+        this.onRemove?.(value);
+    }
+
     clear() {
+        const values = Array.from(this.map.values());
         this.map.clear();
+        if (!this.onRemove) return;
+
+        for (const value of values) {
+            this.onRemove(value);
+        }
+    }
+
+    getKeys(): K[] {
+        return Array.from(this.map.keys());
     }
 }
