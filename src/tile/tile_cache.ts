@@ -24,9 +24,7 @@ export class BoundedLRUCache<K, V> {
         if (this.map.has(key)) {
             this.remove(key);
         } else if (this.map.size >= this.maxEntries) {
-            // Remove oldest
-            const oldestKey = this.map.keys().next().value;
-            this.remove(oldestKey);
+            this.removeOldest();
         }
         this.map.set(key, value);
     }
@@ -34,8 +32,7 @@ export class BoundedLRUCache<K, V> {
     setMaxSize(maxEntries: number) {
         this.maxEntries = maxEntries;
         while (this.map.size > this.maxEntries) {
-            const oldestKey = this.map.keys().next().value;
-            this.remove(oldestKey);
+            this.removeOldest();
         }
     }
 
@@ -45,6 +42,11 @@ export class BoundedLRUCache<K, V> {
                 this.remove(key);
             }
         }
+    }
+
+    removeOldest() {
+        const oldestKey = this.map.keys().next().value;
+        this.remove(oldestKey);
     }
 
     remove(key: K) {
