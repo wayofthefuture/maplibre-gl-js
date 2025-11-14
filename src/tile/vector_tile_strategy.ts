@@ -2,10 +2,9 @@ import {EXTENT} from '../data/extent';
 import {EXTENT_BOUNDS} from '../data/extent_bounds';
 import {Bounds} from '../geo/bounds';
 import {MercatorCoordinate} from '../geo/mercator_coordinate';
+import {type OverscaledTileID, sortTileIDs} from './tile_id';
 import type {Tile} from './tile';
-import type {TileManagerState} from './tile_manager_state';
 import type {TileManagerStrategy} from './tile_manager';
-import type {OverscaledTileID} from './tile_id';
 import type {ITransform} from '../geo/transform_interface';
 import type {Terrain} from '../render/terrain';
 import type Point from '@mapbox/point-geometry';
@@ -18,26 +17,12 @@ export type TileResult = {
     scale: number;
 };
 
-/**
- * Vector-specific tile management strategy
- *
- * Responsibilities specific to vector tiles:
- *  - Managing symbol fade hold duration to prevent label flicker
- *  - Retaining tiles with symbols for gradual fade out
- *  - Coordinating symbol placement across tile boundaries
- */
 export class VectorTileStrategy implements TileManagerStrategy {
-    _state: TileManagerState;
-
-    constructor(state: TileManagerState) {
-        this._state = state;
-    }
-
     /**
-     * Post update processing for vector tiles. Returns list of tile IDs that should be removed.
+     * Post-update processing for vector tiles. Handles symbol fade holding for retained tiles.
+     * Returns a list of tile ids that should be removed.
      */
-    onFinishUpdate(_idealTileIDs: OverscaledTileID[], retain: Record<string, OverscaledTileID>, _sourceMinZoom: number, _sourceMaxZoom: number, fadeDuration: number): string[] {
-        const tiles = this._state.getTiles();
+    onFinishUpdate(tiles: Record<string, Tile>, _idealTileIDs: Array<OverscaledTileID>, retain: Record<string, OverscaledTileID>, _sourceMinZoom: number, _sourceMaxZoom: number, fadeDuration: number): string[] {
         const removeIds = [];
 
         for (const key in tiles) {
@@ -66,6 +51,9 @@ export class VectorTileStrategy implements TileManagerStrategy {
         return removeIds;
     }
 
+    /**
+     * Determine if a vector tile is renderable based on its data and current fade state.
+     */
     isTileRenderable(tile: Tile, symbolLayer?: boolean): boolean {
         return (
             tile?.hasData() &&
@@ -74,25 +62,24 @@ export class VectorTileStrategy implements TileManagerStrategy {
     }
 
     /**
-     * Release all tiles that are held for symbol fading.
-     * This is useful when forcing an immediate cleanup without waiting for fade completion.
+     * Returns a list of tile ids that are holding for symbol fade.
      */
-    releaseSymbolFadeTiles() {
-        const tiles = this._state.getTiles();
+    getTilesHoldingForSymbolFade(tiles: Record<string, Tile>): Array<string> {
+        const ids = [];
         for (const id in tiles) {
             if (tiles[id].holdingForSymbolFade()) {
-                this._state.removeTileByID(id);
+                ids.push(id);
             }
         }
+        return ids;
     }
 
     /**
-     * Search through our current tiles and attempt to find the tiles that
-     * cover the given bounds.
+     * Search through our current tiles and attempt to find the tiles that cover the given bounds.
      * @param pointQueryGeometry - coordinates of the corners of bounding rectangle
      * @returns result items have `{tile, minX, maxX, minY, maxY}`, where min/max bounding values are the given bounds transformed in into the coordinate space of this tile.
      */
-    tilesIn(pointQueryGeometry: Array<Point>, maxPitchScaleFactor: number, has3DLayer: boolean, transform: ITransform, terrain: Terrain): TileResult[] {
+    tilesIn(tiles: Record<string, Tile>, pointQueryGeometry: Array<Point>, maxPitchScaleFactor: number, has3DLayer: boolean, transform: ITransform, terrain: Terrain): TileResult[] {
         const tileResults: TileResult[] = [];
 
         if (!transform) return tileResults;
@@ -107,7 +94,10 @@ export class VectorTileStrategy implements TileManagerStrategy {
         const cameraQueryGeometry = this._transformBbox(cameraPointQueryGeometry, project, !allowWorldCopies);
         const cameraBounds = Bounds.fromPoints(cameraQueryGeometry);
 
-        const sortedTiles = this._state.getTilesSorted();
+        // Assemble a list of sorted tiles
+        const tileIDs = [];
+        for (const id in tiles) tileIDs.push(tiles[id].tileID);
+        const sortedTiles = sortTileIDs(tileIDs).map(tileID => tiles[tileID.key]);
 
         for (const tile of sortedTiles) {
             if (tile.holdingForSymbolFade()) {
@@ -143,6 +133,9 @@ export class VectorTileStrategy implements TileManagerStrategy {
         return tileResults;
     }
 
+    /**
+     * Transform a bounding box from screen coordinates to tile coordinates.
+     */
     _transformBbox(geom: Point[], project: (point: Point) => MercatorCoordinate, checkWrap: boolean): MercatorCoordinate[] {
         let transformed = geom.map(project);
         if (checkWrap) {

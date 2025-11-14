@@ -2,7 +2,6 @@ import {create as createSource} from '../source/source';
 
 import {VectorTileStrategy, type TileResult} from './vector_tile_strategy';
 import {RasterTileStrategy} from './raster_tile_strategy';
-import {TileManagerState} from './tile_manager_state';
 import {TileCache} from './tile_cache';
 import {OverscaledTileID, sortTileIDs} from './tile_id';
 import {Tile} from './tile';
@@ -41,9 +40,9 @@ export interface TileManagerStrategy {
     onTileRetrievedFromCache?(tile: Tile): void;
 
     /**
-     * Perform post-update logic
+     * Perform post-update logic - returns a list of tiles to be removed
      */
-    onFinishUpdate(idealTileIDs: OverscaledTileID[], retain: Record<string, OverscaledTileID>, sourceMinZoom: number, sourceMaxZoom: number, fadeDuration: number): string[];
+    onFinishUpdate(tiles: Record<string, Tile>, idealTileIDs: Array<OverscaledTileID>, retain: Record<string, OverscaledTileID>, sourceMinZoom: number, sourceMaxZoom: number, fadeDuration: number): string[];
 
     /**
      * Determine whether a tile is renderable
@@ -53,17 +52,17 @@ export interface TileManagerStrategy {
     /**
      * Check if the manager still has tile transitions
      */
-    hasTransition?(): boolean;
+    hasTransition?(tiles: Record<string, Tile>): boolean;
 
     /**
      * Tiles in a given query geometry
      */
-    tilesIn?(pointQueryGeometry: Array<Point>, maxPitchScaleFactor: number, has3DLayer: boolean, transform: ITransform, terrain: Terrain): TileResult[];
+    tilesIn?(tiles: Record<string, Tile>, pointQueryGeometry: Array<Point>, maxPitchScaleFactor: number, has3DLayer: boolean, transform: ITransform, terrain: Terrain): TileResult[];
 
     /**
-     * Release tiles held for fading (optional, mainly for vector tiles with symbols)
+     * Release tiles held for fading (optional, mainly for vector tiles with symbols) - returns a list of tiles to be removed
      */
-    releaseSymbolFadeTiles?(): void;
+    getTilesHoldingForSymbolFade?(tiles: Record<string, Tile>): Array<string>;
 
     /**
      * Set raster fade duration (optional, only for raster tiles)
@@ -93,7 +92,7 @@ export class TileManager extends Evented {
     style: Style;
 
     _source: Source;
-    _state: TileManagerState;
+    _tiles: Record<string, Tile>;
     _strategy: TileManagerStrategy;
     _cache: TileCache;
 
@@ -148,13 +147,13 @@ export class TileManager extends Evented {
         });
 
         this._source = createSource(id, options, dispatcher, this);
-        this._state = new TileManagerState();
         this._cache = new TileCache(0, tile => this._unloadTile(tile));
+        this._tiles = {};
 
         // Set the stragy for this tile manager to either raster or vector tiles.
         this._strategy = options.type === 'raster'
-            ? new RasterTileStrategy(this._state)
-            : new VectorTileStrategy(this._state);
+            ? new RasterTileStrategy()
+            : new VectorTileStrategy();
 
         this._timers = {};
         this._maxTileCacheSize = null;
@@ -194,9 +193,8 @@ export class TileManager extends Evented {
         // do not consider as loaded if the update hasn't been called yet (we do not know if we will have any tiles to fetch)
         if (!this._updated) { return false; }
 
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            const tile = tiles[id];
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
             if (tile.state !== 'loaded' && tile.state !== 'errored')
                 return false;
         }
@@ -205,10 +203,6 @@ export class TileManager extends Evented {
 
     getSource(): Source {
         return this._source;
-    }
-
-    getState(): TileManagerState {
-        return this._state;
     }
 
     getCache(): TileCache {
@@ -264,10 +258,9 @@ export class TileManager extends Evented {
             this._source.prepare();
         }
 
-        const tiles = this._state.getTiles();
-        this._featureState.coalesceChanges(tiles, this.map ? this.map.painter : null);
-        for (const id in tiles) {
-            const tile = tiles[id];
+        this._featureState.coalesceChanges(this._tiles, this.map ? this.map.painter : null);
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
             tile.upload(context);
             tile.prepare(this.map.style.imageManager);
         }
@@ -275,9 +268,8 @@ export class TileManager extends Evented {
 
     getRenderableIds(symbolLayer?: boolean): Array<string> {
         const renderables: Array<Tile> = [];
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            const tile = tiles[id];
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
             if (this._strategy.isTileRenderable(tile, symbolLayer)) {
                 renderables.push(tile);
             }
@@ -323,20 +315,19 @@ export class TileManager extends Evented {
         // Reset the tile cache
         this._cache.reset();
 
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            if (tileReloadStrategy && !this._source.shouldReloadTile(tiles[id], tileReloadStrategy)) {
+        for (const id in this._tiles) {
+            if (tileReloadStrategy && !this._source.shouldReloadTile(this._tiles[id], tileReloadStrategy)) {
                 continue;
             } else if (sourceDataChanged) {
                 this._reloadTile(id, 'expired');
-            } else if (tiles[id].state !== 'errored') {
+            } else if (this._tiles[id].state !== 'errored') {
                 this._reloadTile(id, 'reloading');
             }
         }
     }
 
     async _reloadTile(id: string, state: TileState) {
-        const tile = this._state.getTileByID(id);
+        const tile = this.getTileByID(id);
 
         // this potentially does not address all underlying
         // issues https://github.com/mapbox/mapbox-gl-js/issues/4252
@@ -380,7 +371,7 @@ export class TileManager extends Evented {
         for (let i = 0; i < renderables.length; i++) {
             const borderId = renderables[i];
             if (tile.neighboringTiles && tile.neighboringTiles[borderId]) {
-                const borderTile = this._state.getTileByID(borderId);
+                const borderTile = this.getTileByID(borderId);
                 fillBorder(tile, borderTile);
                 fillBorder(borderTile, tile);
             }
@@ -414,15 +405,40 @@ export class TileManager extends Evented {
     }
 
     getTile(tileID: OverscaledTileID): Tile {
-        return this._state.getTileByID(tileID.key);
+        return this._tiles[tileID.key];
     }
 
     getTileByID(id: string): Tile {
-        return this._state.getTileByID(id);
+        return this._tiles[id];
     }
 
     getLoadedTile(tileID: OverscaledTileID): Tile {
-        return this._state.getLoadedTile(tileID);
+        const tile = this._tiles[tileID.key];
+        return tile?.hasData() ? tile : null;
+    }
+
+    getTilesSorted(): Array<Tile> {
+        const tileIDs: OverscaledTileID[] = [];
+        for (const id in this._tiles) {
+            tileIDs.push(this._tiles[id].tileID);
+        }
+        return sortTileIDs(tileIDs).map(tileID => this._tiles[tileID.key]);
+    }
+
+    getTileKeysSorted(): Array<string> {
+        return this.getTilesSorted().map(tile => tile.tileID.key);
+    }
+
+    unwrapTiles(wrapDelta: number) {
+        const nextTiles: Record<string, Tile> = {};
+
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
+            tile.tileID = tile.tileID.unwrapTo(tile.tileID.wrap + wrapDelta);
+            nextTiles[tile.tileID.key] = tile;
+        }
+
+        this._tiles = nextTiles;
     }
 
     /**
@@ -493,9 +509,8 @@ export class TileManager extends Evented {
         const loadedDescendents: Record<string, Tile[]> = {};
 
         // enumerate current tiles and find the loaded descendents of each target tile
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            const tile = tiles[id];
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
             if (!tile.hasData()) continue;
 
             // determine if the loaded tile (hasData) is a qualified descendent of any target tile
@@ -532,7 +547,7 @@ export class TileManager extends Evented {
      * are more likely to be found on devices with more memory and on pages where
      * the map is more important.
      */
-    _updateCacheSize(transform: IReadonlyTransform) {
+    updateCacheSize(transform: IReadonlyTransform) {
         const widthInTiles = Math.ceil(transform.width / this._source.tileSize) + 1;
         const heightInTiles = Math.ceil(transform.height / this._source.tileSize) + 1;
         const approxTilesInView = widthInTiles * heightInTiles;
@@ -568,7 +583,7 @@ export class TileManager extends Evented {
         this._prevLng = lng;
 
         if (wrapDelta) {
-            this._state.unwrapTiles(wrapDelta);
+            this.unwrapTiles(wrapDelta);
             this._resetTileReloadTimers();
         }
     }
@@ -584,7 +599,7 @@ export class TileManager extends Evented {
         this.transform = transform;
         this.terrain = terrain;
 
-        this._updateCacheSize(transform);
+        this.updateCacheSize(transform);
         this._handleWrapJump(this.transform.center.lng);
 
         let idealTileIDs: OverscaledTileID[];
@@ -632,9 +647,9 @@ export class TileManager extends Evented {
         const retain: Record<string, OverscaledTileID> = this._updateRetainedTiles(idealTileIDs, zoom);
 
         // delegate to strategy for post-update logic - returns tile ids to remove
-        const removeIds = this._strategy.onFinishUpdate(idealTileIDs, retain, this._source.minzoom, this._source.maxzoom, this.map?._fadeDuration);
+        const removeIds = this._strategy.onFinishUpdate(this._tiles, idealTileIDs, retain, this._source.minzoom, this._source.maxzoom, this.map?._fadeDuration);
         for (const id of removeIds) {
-            this.removeTile(id);
+            this._removeTile(id);
         }
     }
 
@@ -682,10 +697,10 @@ export class TileManager extends Evented {
         missingIdealIDs = this._retainLoadedChildren(missingIdealIDs, retain);
 
         // for remaining missing tiles with incomplete child coverage, seek a loaded parent tile
-        const tiles = this._state.getTiles();
+
         for (const missingKey in missingIdealIDs) {
             const missingID = missingIdealIDs[missingKey];
-            let tile = tiles[missingKey];
+            let tile = this._tiles[missingKey];
 
             // As we ascend up the tile pyramid of the ideal tile, we check whether the parent
             // tile has been previously requested (and errored because we only loop over tiles with no data)
@@ -723,7 +738,7 @@ export class TileManager extends Evented {
      * Add a tile, given its coordinate, to the pyramid.
      */
     _addTile(tileID: OverscaledTileID): Tile {
-        let tile = this._state.getTileByID(tileID.key);
+        let tile = this.getTileByID(tileID.key);
         if (tile)
             return tile;
 
@@ -749,7 +764,7 @@ export class TileManager extends Evented {
         }
 
         tile.uses++;
-        this._state.addTile(tile);
+        this._tiles[tileID.key] = tile;
         if (!cached) {
             this._source.fire(new Event('dataloading', {tile, coord: tile.tileID, dataType: 'source'}));
         }
@@ -786,9 +801,8 @@ export class TileManager extends Evented {
             clearTimeout(this._timers[id]);
             delete this._timers[id];
         }
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            this._setTileReloadTimer(id, tiles[id]);
+        for (const id in this._tiles) {
+            this._setTileReloadTimer(id, this._tiles[id]);
         }
     }
 
@@ -796,9 +810,8 @@ export class TileManager extends Evented {
      * Reload any currently renderable tiles that are match one of the incoming `tileId` x/y/z
      */
     refreshTiles(tileIds: Array<ICanonicalTileID>) {
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            const tile = tiles[id];
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
             if (!this._strategy.isTileRenderable(tile) && tile.state != 'errored') {
                 continue;
             }
@@ -812,9 +825,8 @@ export class TileManager extends Evented {
      * Clear vector data from all tiles currently in the store
      */
     clearVectorData() {
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            const tile = tiles[id];
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
             tile.unloadVectorData();
         }
     }
@@ -825,8 +837,8 @@ export class TileManager extends Evented {
     clearTiles() {
         this._shouldReloadOnResume = false;
         this._paused = false;
-        for (const id in this._state.getTiles()) {
-            this.removeTile(id);
+        for (const id in this._tiles) {
+            this._removeTile(id);
         }
         // Reset the tile cache
         this._cache.reset();
@@ -835,15 +847,17 @@ export class TileManager extends Evented {
     /**
      * Remove a tile, given its id, from the pyramid
      */
-    removeTile(id: string) {
-        const tile = this._state.getTileByID(id);
-        if (!tile) return;
+    _removeTile(id: string) {
+        const tile = this._tiles[id];
+        if (!tile)
+            return;
 
         tile.uses--;
-        this._state.removeTileByID(id);
+        delete this._tiles[id];
         this._clearTileReloadTimer(id);
 
-        if (tile.uses > 0) return;
+        if (tile.uses > 0)
+            return;
 
         if (tile.hasData() && tile.state !== 'reloading') {
             // Cache the removed tile
@@ -880,9 +894,8 @@ export class TileManager extends Evented {
     }
 
     getVisibleCoordinates(symbolLayer?: boolean): Array<OverscaledTileID> {
-        const tiles = this._state.getTiles();
         const renderableIds = this.getRenderableIds(symbolLayer);
-        const coords = renderableIds.map(id => tiles[id].tileID);
+        const coords = renderableIds.map(id => this._tiles[id].tileID);
         if (this.transform) {
             this.transform.populateCache(coords);
         }
@@ -893,16 +906,15 @@ export class TileManager extends Evented {
         if (this._source.hasTransition()) {
             return true;
         }
-        if (this._strategy.hasTransition?.()) {
+        if (this._strategy.hasTransition?.(this._tiles)) {
             return true;
         }
         return false;
     }
 
     areTilesLoaded(): boolean {
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            const tile = tiles[id];
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
             if (!(tile.state === 'loaded' || tile.state === 'errored')) {
                 return false;
             }
@@ -910,8 +922,17 @@ export class TileManager extends Evented {
         return true;
     }
 
+    /**
+     * Release all tiles that are held for symbol fading.
+     * This is useful when forcing an immediate cleanup without waiting for fade completion.
+     */
     releaseSymbolFadeTiles() {
-        this._strategy.releaseSymbolFadeTiles?.();
+        const holdingIds = this._strategy.getTilesHoldingForSymbolFade?.(this._tiles);
+        if (!holdingIds) return;
+
+        for (const id of holdingIds) {
+            this._removeTile(id);
+        }
     }
 
     setRasterFadeDuration(fadeDuration: number) {
@@ -919,7 +940,7 @@ export class TileManager extends Evented {
     }
 
     tilesIn(pointQueryGeometry: Array<Point>, maxPitchScaleFactor: number, has3DLayer: boolean): TileResult[] {
-        return this._strategy.tilesIn?.(pointQueryGeometry, maxPitchScaleFactor, has3DLayer, this.transform, this.terrain) ?? [];
+        return this._strategy.tilesIn?.(this._tiles, pointQueryGeometry, maxPitchScaleFactor, has3DLayer, this.transform, this.terrain) ?? [];
     }
 
     /**
@@ -958,7 +979,7 @@ export class TileManager extends Evented {
      * be reloaded when their dependencies change.
      */
     setDependencies(tileKey: string, namespace: string, dependencies: Array<string>) {
-        const tile = this._state.getTileByID(tileKey);
+        const tile = this.getTileByID(tileKey);
         if (tile) {
             tile.setDependencies(namespace, dependencies);
         }
@@ -968,9 +989,8 @@ export class TileManager extends Evented {
      * Reloads all tiles that depend on the given keys.
      */
     reloadTilesForDependencies(namespaces: Array<string>, keys: Array<string>) {
-        const tiles = this._state.getTiles();
-        for (const id in tiles) {
-            const tile = tiles[id];
+        for (const id in this._tiles) {
+            const tile = this._tiles[id];
             if (tile.hasDependency(namespaces, keys)) {
                 this._reloadTile(id, 'reloading');
             }
