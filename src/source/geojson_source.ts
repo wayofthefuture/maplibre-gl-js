@@ -484,26 +484,31 @@ export class GeoJSONSource extends Evented implements Source {
 
         const {add = [], update = [], remove = []} = (diff || {});
 
-        const prevIds = new Set([...update.map(u => u.id), ...remove]);
+        const prevIds = new Set<GeoJSONFeatureId>();
+        const idWarnMessage = `GeoJSONSource "${this.id}": updateData is slower when using string GeoJSON feature IDs. Consider using promoteId or numeric IDs for better performance.`;
 
-        for (const id of prevIds.values()) {
-            if (typeof id !== 'number' && this.promoteId == null) {
-                warnOnce(`GeoJSONSource "${this.id}": updateData is slower when using string GeoJSON feature IDs (e.g. "${id}"). Consider using promoteId or numeric IDs for better performance.`);
+        // Single pass to fill prevIds and check if id's are valid
+        for (const u of update) {
+            if (typeof u.id !== 'number' && this.promoteId == null) {
+                warnOnce(idWarnMessage);
                 return undefined;
             }
+            prevIds.add(u.id);
+        }
+        for (const id of remove) {
+            if (typeof id !== 'number' && this.promoteId == null) {
+                warnOnce(idWarnMessage);
+                return undefined;
+            }
+            prevIds.add(id);
         }
 
-        const nextBounds = [
-            ...update.map(f => f.newGeometry),
-            ...add.map(f => f.geometry)
-        ]
-            .filter(Boolean)
-            .map(g => getGeoJSONBounds(g));
+        // Single pass to build nextBounds
+        const nextBounds = [];
+        for (const f of update) if (f.newGeometry) nextBounds.push(getGeoJSONBounds(f.newGeometry));
+        for (const f of add)    if (f.geometry)    nextBounds.push(getGeoJSONBounds(f.geometry));
 
-        return {
-            nextBounds,
-            prevIds
-        };
+        return {nextBounds, prevIds};
     }
 
     /**
