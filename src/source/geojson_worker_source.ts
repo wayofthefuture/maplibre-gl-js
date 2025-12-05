@@ -4,7 +4,7 @@ import rewind from '@mapbox/geojson-rewind';
 import {GeoJSONWrapper} from '@maplibre/vt-pbf';
 import {EXTENT} from '../data/extent';
 import Supercluster, {type Options as SuperclusterOptions, type ClusterProperties} from 'supercluster';
-import geojsonvt, {type Options as GeoJSONVTOptions} from 'geojson-vt';
+import geotile, {type Options as GeoTileOptions} from '@wayofthefuture/geo-tile';
 import {VectorTileWorkerSource} from './vector_tile_worker_source';
 import {createExpression} from '@maplibre/maplibre-gl-style-spec';
 import {isAbortError} from '../util/abort_error';
@@ -23,7 +23,7 @@ import type {StyleLayerIndex} from '../style/style_layer_index';
 export type GeoJSONWorkerOptions = {
     source?: string;
     cluster?: boolean;
-    geojsonVtOptions?: GeoJSONVTOptions;
+    geoTileOptions?: GeoTileOptions;
     superclusterOptions?: SuperclusterOptions<any, any>;
     clusterProperties?: ClusterProperties;
     filter?: Array<unknown>;
@@ -50,7 +50,7 @@ export type LoadGeoJSONParameters = GeoJSONWorkerOptions & {
     dataDiff?: GeoJSONSourceDiff;
 };
 
-type GeoJSONIndex = ReturnType<typeof geojsonvt> | Supercluster;
+type GeoJSONIndex = ReturnType<typeof geotile> | Supercluster;
 
 /**
  * The {@link WorkerSource} implementation that supports {@link GeoJSONSource}.
@@ -125,7 +125,12 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
             }
 
             const data = await this._pendingData;
-            this._geoJSONIndex = this._createGeoJSONIndex(data, params);
+
+            if (this._geoJSONIndex && params.dataDiff && !params.cluster) {
+                this._geoJSONIndex.updateData(params.dataDiff);
+            } else {
+                this._geoJSONIndex = this._createGeoJSONIndex(data, params);
+            }
             this.loaded = {};
 
             const result: GeoJSONWorkerSourceLoadDataResult = {};
@@ -309,7 +314,7 @@ export function createGeoJSONIndex(data: GeoJSON.GeoJSON, params: LoadGeoJSONPar
     if (params.cluster) {
         return new Supercluster(getSuperclusterOptions(params)).load((data as any).features);
     }
-    return geojsonvt(data, params.geojsonVtOptions);
+    return geotile(data, params.geoTileOptions);
 }
 
 function getSuperclusterOptions({superclusterOptions, clusterProperties}: LoadGeoJSONParameters) {

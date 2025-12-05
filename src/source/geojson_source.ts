@@ -188,13 +188,14 @@ export class GeoJSONSource extends Evented implements Source {
         this.workerOptions = extend({
             source: this.id,
             cluster: options.cluster || false,
-            geojsonVtOptions: {
+            geoTileOptions: {
                 buffer: this._pixelsToTileUnits(options.buffer !== undefined ? options.buffer : 128),
                 tolerance: this._pixelsToTileUnits(options.tolerance !== undefined ? options.tolerance : 0.375),
                 extent: EXTENT,
                 maxZoom: this.maxzoom,
                 lineMetrics: options.lineMetrics || false,
-                generateId: options.generateId || false
+                generateId: options.generateId || false,
+                updateable: true
             },
             superclusterOptions: {
                 maxZoom: this._getClusterMaxZoom(options.clusterMaxZoom),
@@ -510,7 +511,7 @@ export class GeoJSONSource extends Evented implements Source {
         }
 
         // Update the tile if contained or will contain an updated feature.
-        const {buffer, extent} = this.workerOptions.geojsonVtOptions;
+        const {buffer, extent} = this.workerOptions.geoTileOptions;
         const tileBounds = tileIdToLngLatBounds(
             tile.tileID.canonical,
             buffer / extent
