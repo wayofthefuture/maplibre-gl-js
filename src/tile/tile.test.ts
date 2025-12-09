@@ -3,7 +3,6 @@ import {EXTENT} from '../data/extent';
 import {createSymbolBucket} from '../../test/unit/lib/create_symbol_layer';
 import {Tile} from './tile';
 import {OverscaledTileID} from './tile_id';
-import {TileData} from './tile_data';
 import fs from 'fs';
 import path from 'path';
 import {type Feature, GeoJSONWrapper} from '@maplibre/vt-pbf';
@@ -11,7 +10,6 @@ import {FeatureIndex, GEOJSON_TILE_LAYER_NAME} from '../data/feature_index';
 import {CollisionBoxArray} from '../data/array_types.g';
 import {extend} from '../util/util';
 import {serialize, deserialize} from '../util/web_worker_transfer';
-import {bufferToArrayBuffer} from '../util/test/util';
 
 describe('querySourceFeatures', () => {
     const features = [{
@@ -32,7 +30,7 @@ describe('querySourceFeatures', () => {
         const geojsonWrapper = new GeoJSONWrapper(features, {version: 2, extent: EXTENT});
         geojsonWrapper.name = GEOJSON_TILE_LAYER_NAME;
         tile.loadVectorData(
-            createVectorData({tileData: new TileData({vectorData: geojsonWrapper})}),
+            createVectorData({vectorData: geojsonWrapper}),
             createPainter()
         );
 
@@ -95,7 +93,7 @@ describe('querySourceFeatures', () => {
         expect(result).toHaveLength(0);
 
         tile.loadVectorData(
-            createVectorData({tileData: new TileData({rawData: createRawTileData()})}),
+            createVectorData({rawData: createRawTileData()}),
             createPainter()
         );
 
@@ -132,7 +130,7 @@ describe('querySourceFeatures', () => {
         tile.state = 'loaded';
 
         tile.loadVectorData(
-            createVectorData({tileData: new TileData({rawData: createRawTileData()})}),
+            createVectorData({rawData: createRawTileData()}),
             createPainter()
         );
         tile.loadVectorData(
@@ -276,9 +274,8 @@ describe('rtl text detection', () => {
         const symbolBucket = createSymbolBucket('test', 'Test', 'test', new CollisionBoxArray());
         // symbolBucket has not been populated yet so we force override the value in the stub
         symbolBucket.hasRTLText = true;
-        const tileData = new TileData({rawData: createRawTileData()});
         tile.loadVectorData(
-            createVectorData(extend({tileData}, {buckets: [symbolBucket]})),
+            createVectorData({rawData: createRawTileData(), buckets: [symbolBucket]}),
             createPainter({
                 getLayer() {
                     return symbolBucket.layers[0];
@@ -291,8 +288,8 @@ describe('rtl text detection', () => {
 
 });
 
-function createRawTileData(): ArrayBuffer {
-    return bufferToArrayBuffer(fs.readFileSync(path.join(__dirname, '../../test/unit/assets/mbsv5-6-18-23.vector.pbf')));
+function createRawTileData() {
+    return fs.readFileSync(path.join(__dirname, '../../test/unit/assets/mbsv5-6-18-23.vector.pbf'));
 }
 
 function createVectorData(options?) {

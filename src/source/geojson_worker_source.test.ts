@@ -54,10 +54,10 @@ describe('reloadTile', () => {
         expect(spy).toHaveBeenCalledTimes(1);
 
         // geojson shouldn't encode any tile data, just provide features
-        expect(firstData.tileData.rawData).toBeUndefined();
+        expect(firstData.rawData).toBeUndefined();
 
         // geojson should support undefined properties
-        const geoJsonWrapper = firstData.tileData.vectorData as GeoJSONWrapper;
+        const geoJsonWrapper = firstData.vectorData as GeoJSONWrapper;
         expect(geoJsonWrapper.features[0].tags).toStrictEqual({
             'property1': 10,
             'property2': undefined,
@@ -66,8 +66,8 @@ describe('reloadTile', () => {
 
         // second data should return the same features
         let data = await source.reloadTile(tileParams as any as WorkerTileParameters);
-        expect('rawTileData' in data).toBeFalsy();
-        expect(data).toEqual(firstData);
+        expect(data.rawData).toBeFalsy();
+        expect(data.vectorData).toEqual(firstData.vectorData);
 
         // also shouldn't call loadVectorData again
         expect(spy).toHaveBeenCalledTimes(1);
@@ -77,11 +77,10 @@ describe('reloadTile', () => {
 
         // should call loadVectorData again after changing geojson data
         data = await source.reloadTile(tileParams as any as WorkerTileParameters);
-        expect(data.tileData.vectorData).toBeTruthy();
-        expect(data).toEqual(firstData);
+        expect(data.rawData).toBeFalsy();
+        expect(data.vectorData).toEqual(firstData.vectorData);
         expect(spy).toHaveBeenCalledTimes(2);
     });
-
 });
 
 describe('resourceTiming', () => {

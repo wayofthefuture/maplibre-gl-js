@@ -3,7 +3,6 @@ import type {RGBAImage, AlphaImage} from '../util/image';
 import type {GlyphPositions} from '../render/glyph_atlas';
 import type {ImageAtlas} from '../render/image_atlas';
 import type {CanonicalTileID, OverscaledTileID} from '../tile/tile_id';
-import type {TileData} from '../tile/tile_data';
 import type {Bucket} from '../data/bucket';
 import type {FeatureIndex} from '../data/feature_index';
 import type {CollisionBoxArray} from '../data/array_types.g';
@@ -16,6 +15,7 @@ import type {IActor} from '../util/actor';
 import type {StyleLayerIndex} from '../style/style_layer_index';
 import type {SubdivisionGranularitySetting} from '../render/subdivision_granularity_settings';
 import type {DashEntry} from '../render/line_atlas';
+import type {VectorTileLike} from '@maplibre/vt-pbf';
 
 /**
  * Parameters to identify a tile
@@ -79,7 +79,9 @@ export type WorkerTileResult = ExpiryData & {
     glyphAtlasImage: AlphaImage;
     featureIndex: FeatureIndex;
     collisionBoxArray: CollisionBoxArray;
-    tileData?: TileData;
+    rawData?: ArrayBuffer | null;
+    rawDataEncoding?: string;
+    vectorData?: VectorTileLike;
     encoding?: string;
     resourceTiming?: Array<PerformanceResourceTiming>;
     // Only used for benchmarking:
@@ -112,7 +114,7 @@ export interface WorkerSource {
     /**
      * Loads a tile from the given params and parse it into buckets ready to send
      * back to the main thread for rendering.  Should call the callback with:
-     * `{ buckets, featureIndex, collisionIndex, rawTileData}`.
+     * `{ buckets, featureIndex, collisionIndex, rawData, vectorData}`.
      */
     loadTile(params: WorkerTileParameters): Promise<WorkerTileResult>;
     /**

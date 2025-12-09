@@ -2,7 +2,6 @@ import Protobuf from 'pbf';
 import {VectorTile} from '@mapbox/vector-tile';
 import {type ExpiryData, getArrayBuffer} from '../util/ajax';
 import {WorkerTile} from './worker_tile';
-import {TileData} from '../tile/tile_data';
 import {BoundedLRUCache} from '../tile/tile_cache';
 import {extend} from '../util/util';
 import {RequestPerformance} from '../util/performance';
@@ -17,6 +16,7 @@ import type {
 import type {IActor} from '../util/actor';
 import type {StyleLayer} from '../style/style_layer';
 import type {StyleLayerIndex} from '../style/style_layer_index';
+import type {TileDataParameters} from '../tile/tile_data';
 import {type VectorTileLayerLike, type VectorTileLike} from '@maplibre/vt-pbf';
 
 export type LoadVectorTileResult = {
@@ -26,8 +26,8 @@ export type LoadVectorTileResult = {
 } & ExpiryData;
 
 type FetchingState = {
-    rawTileData: ArrayBufferLike;
-    vectorData: VectorTileLike;
+    rawData: ArrayBufferLike;
+    vectorTile: VectorTileLike;
     cacheControl: ExpiryData;
     resourceTiming: any;
 };
@@ -127,8 +127,8 @@ export class VectorTileWorkerSource implements WorkerSource {
                 response.vectorTile = overzoomTile.vectorTile;
             }
 
-            const rawTileData = response.rawData;
-            const vectorData = response.vectorTile;
+            const rawData = response.rawData;
+            const vectorTile = response.vectorTile;
             const cacheControl = {} as ExpiryData;
             if (response.expires) cacheControl.expires = response.expires;
             if (response.cacheControl) cacheControl.cacheControl = response.cacheControl;
@@ -146,15 +146,13 @@ export class VectorTileWorkerSource implements WorkerSource {
             const parsePromise = workerTile.parse(response.vectorTile, this.layerIndex, this.availableImages, this.actor, params.subdivisionGranularity);
             this.loaded[tileUid] = workerTile;
             // keep the original fetching state so that reload tile can pick it up if the original parse is cancelled by reloads' parse
-            this.fetching[tileUid] = {rawTileData, vectorData, cacheControl, resourceTiming};
+            this.fetching[tileUid] = {rawData, vectorTile, cacheControl, resourceTiming};
 
             try {
                 const result = await parsePromise;
-
-                // Transferring a copy of rawTileData because the worker needs to retain its copy.
-                const tileData = new TileData({rawData: rawTileData?.slice(0) as ArrayBuffer, vectorData});
-
-                return extend({tileData, encoding: params.encoding}, result, cacheControl, resourceTiming);
+                const tileDataParams = this._getWorkerTileResultData(response);
+                const encoding = {encoding: params.encoding};
+                return extend(tileDataParams, encoding, result, cacheControl, resourceTiming);
             } finally {
                 delete this.fetching[tileUid];
             }
@@ -164,6 +162,17 @@ export class VectorTileWorkerSource implements WorkerSource {
             this.loaded[tileUid] = workerTile;
             throw err;
         }
+    }
+
+    private _getWorkerTileResultData(response: LoadVectorTileResult): TileDataParameters {
+        if (response.rawData) {
+            // Transferring a copy of rawData because the worker needs to retain its copy.
+            return {rawData: response.rawData.slice(0) as ArrayBuffer};
+        }
+        if (response.vectorTile) {
+            return {vectorData: response.vectorTile};
+        }
+        return {};
     }
 
     /**
@@ -215,13 +224,14 @@ export class VectorTileWorkerSource implements WorkerSource {
         workerTile.showCollisionBoxes = params.showCollisionBoxes;
         if (workerTile.status === 'parsing') {
             const result = await workerTile.parse(workerTile.vectorTile, this.layerIndex, this.availableImages, this.actor, params.subdivisionGranularity);
-            // if we have cancelled the original parse, make sure to pass the rawTileData from the original fetch
+            // if we have cancelled the original parse, make sure to pass the rawData from the original fetch
             let parseResult: WorkerTileResult;
             if (this.fetching[uid]) {
-                const {rawTileData, vectorData, cacheControl, resourceTiming} = this.fetching[uid];
+                const {rawData, vectorTile, cacheControl, resourceTiming} = this.fetching[uid];
                 delete this.fetching[uid];
-                const tileData = new TileData({rawData: rawTileData?.slice(0) as ArrayBuffer, vectorData});
-                parseResult = extend({tileData, encoding: params.encoding}, result, cacheControl, resourceTiming);
+                const tileDataParams = this._getWorkerTileResultData({rawData, vectorTile});
+                const encoding = {encoding: params.encoding};
+                parseResult = extend(tileDataParams, encoding, result, cacheControl, resourceTiming);
             } else {
                 parseResult = result;
             }
@@ -230,8 +240,8 @@ export class VectorTileWorkerSource implements WorkerSource {
         // if there was no vector tile data on the initial load, don't try and re-parse tile
         if (workerTile.status === 'done' && workerTile.vectorTile) {
             // this seems like a missing case where cache control is lost? see #3309
-            const tileData = new TileData({vectorData: workerTile.vectorTile});
-            return extend({tileData}, await workerTile.parse(workerTile.vectorTile, this.layerIndex, this.availableImages, this.actor, params.subdivisionGranularity));
+            const tileDataParams = this._getWorkerTileResultData({vectorTile: workerTile.vectorTile});
+            return extend(tileDataParams, await workerTile.parse(workerTile.vectorTile, this.layerIndex, this.availableImages, this.actor, params.subdivisionGranularity));
         }
     }
 

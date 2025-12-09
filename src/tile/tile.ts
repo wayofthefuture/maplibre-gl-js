@@ -10,7 +10,7 @@ import {now} from '../util/time_control';
 import {toEvaluationFeature} from '../data/evaluation_feature';
 import {EvaluationParameters} from '../style/evaluation_parameters';
 import {rtlMainThreadPluginFactory} from '../source/rtl_text_plugin_main_thread';
-import type {TileData} from './tile_data';
+import {TileData} from './tile_data';
 
 const CLOCK_SKEW_RETRY_TIMEOUT = 30000;
 
@@ -217,16 +217,18 @@ export class Tile {
             return;
         }
 
+        const tileData = this.getTileData(data);
+
         if (data.featureIndex) {
             this.latestFeatureIndex = data.featureIndex;
-            if (data.tileData) {
-                // Only vector tiles have rawTileData, and they won't update it for
+            if (tileData.hasData()) {
+                // Only vector tiles have tileData, and they won't update it for
                 // 'reloadTile'
-                this.latestTileData = data.tileData;
-                this.latestFeatureIndex.tileData = data.tileData;
+                this.latestTileData = tileData;
+                this.latestFeatureIndex.tileData = tileData;
                 this.latestFeatureIndex.encoding = data.encoding;
             } else if (this.latestTileData) {
-                // If rawTileData hasn't updated, hold onto a pointer to the last
+                // If tileData hasn't updated, hold onto a pointer to the last
                 // one we received
                 this.latestFeatureIndex.tileData = this.latestTileData;
                 this.latestFeatureIndex.encoding = this.latestEncoding;
@@ -275,6 +277,14 @@ export class Tile {
             this.glyphAtlasImage = data.glyphAtlasImage;
         }
         this.dashPositions = data.dashPositions;
+    }
+
+    getTileData(data: WorkerTileResult): TileData | null {
+        if (!data) return null;
+
+        const {rawData, vectorData} = data;
+
+        return new TileData({rawData, vectorData});
     }
 
     /**
