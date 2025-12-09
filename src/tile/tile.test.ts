@@ -17,7 +17,7 @@ describe('querySourceFeatures', () => {
     const features = [{
         type: 1,
         geometry: [[0, 0]],
-        tags: {oneway: true, test: true}
+        tags: {oneway: true}
     } as any as Feature];
 
     test('not data', () => {

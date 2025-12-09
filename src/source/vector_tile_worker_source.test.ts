@@ -157,9 +157,6 @@ describe('vector tile worker source', () => {
             subdivisionGranularity: SubdivisionGranularitySetting.noSubdivision,
         } as any as WorkerTileParameters);
         expect(res).toBeDefined();
-
-        console.log(res.tileData);
-
         expect(res.tileData.rawData).toBeDefined();
         expect(res.tileData.rawData).toStrictEqual(rawTileData);
     });
