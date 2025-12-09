@@ -73,15 +73,11 @@ export class GeoJSONFeature {
 
         switch (feature.type) {
             case 1: {
-                const points = [];
-                for (const line of vtCoords) {
-                    for (const point of line) {
-                        points.push(point);
-                    }
-                }
+                // Vector tile point/multipoint both reside as nested array, however geojson point is not nested.
+                const points = vtCoords[0];
                 const coordinates = this.projectLine(points, x0, y0, size);
                 this._geometry = points.length === 1 ?
-                    {type: 'Point', coordinates: coordinates[0]} :
+                    {type: 'Point', coordinates: coordinates[0]} :  // Point is not nested like a vector tile point
                     {type: 'MultiPoint', coordinates};
                 break;
             }

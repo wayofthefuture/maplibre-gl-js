@@ -1,4 +1,5 @@
 import {describe, test, expect, vi} from 'vitest';
+import {EXTENT} from '../data/extent';
 import {createSymbolBucket} from '../../test/unit/lib/create_symbol_layer';
 import {Tile} from './tile';
 import {OverscaledTileID} from './tile_id';
@@ -10,8 +11,15 @@ import {FeatureIndex, GEOJSON_TILE_LAYER_NAME} from '../data/feature_index';
 import {CollisionBoxArray} from '../data/array_types.g';
 import {extend} from '../util/util';
 import {serialize, deserialize} from '../util/web_worker_transfer';
+import {bufferToArrayBuffer} from '../util/test/util';
 
 describe('querySourceFeatures', () => {
+    const features = [{
+        type: 1,
+        geometry: [[0, 0]],
+        tags: {oneway: true, test: true}
+    } as any as Feature];
+
     test('not data', () => {
         const tile = new Tile(new OverscaledTileID(3, 0, 2, 1, 2), undefined);
         const result = [];
@@ -20,15 +28,8 @@ describe('querySourceFeatures', () => {
     });
 
     describe('geojson tile', () => {
-        const geoJsonFeatures = [{
-            geometry: {
-                type: 'Point',
-                coordinate: [-90, 0]
-            },
-            properties: {oneway: true}
-        } as any as Feature];
         const tile = new Tile(new OverscaledTileID(3, 0, 2, 1, 2), undefined);
-        const geojsonWrapper = new GeoJSONWrapper(geoJsonFeatures);
+        const geojsonWrapper = new GeoJSONWrapper(features, {version: 2, extent: EXTENT});
         geojsonWrapper.name = GEOJSON_TILE_LAYER_NAME;
         tile.loadVectorData(
             createVectorData({tileData: new TileData({vectorData: geojsonWrapper})}),
@@ -39,11 +40,11 @@ describe('querySourceFeatures', () => {
             let result = [];
             tile.querySourceFeatures(result);
             expect(result).toHaveLength(1);
-            expect(result[0].geometry.coordinates[0]).toEqual([-90, 0]);
+            expect(result[0].geometry.coordinates).toEqual([-90, 0]);
             result = [];
             tile.querySourceFeatures(result, {} as any);
             expect(result).toHaveLength(1);
-            expect(result[0].properties).toEqual(geoJsonFeatures[0].tags);
+            expect(result[0].properties).toEqual(features[0].tags);
         });
 
         test('filter source features', () => {
@@ -94,7 +95,7 @@ describe('querySourceFeatures', () => {
         expect(result).toHaveLength(0);
 
         tile.loadVectorData(
-            createVectorData({rawTileData: createRawTileData()}),
+            createVectorData({tileData: new TileData({rawData: createRawTileData()})}),
             createPainter()
         );
 
@@ -131,7 +132,7 @@ describe('querySourceFeatures', () => {
         tile.state = 'loaded';
 
         tile.loadVectorData(
-            createVectorData({rawTileData: createRawTileData()}),
+            createVectorData({tileData: new TileData({rawData: createRawTileData()})}),
             createPainter()
         );
         tile.loadVectorData(
@@ -275,8 +276,9 @@ describe('rtl text detection', () => {
         const symbolBucket = createSymbolBucket('test', 'Test', 'test', new CollisionBoxArray());
         // symbolBucket has not been populated yet so we force override the value in the stub
         symbolBucket.hasRTLText = true;
+        const tileData = new TileData({rawData: createRawTileData()});
         tile.loadVectorData(
-            createVectorData({rawTileData: createRawTileData(), buckets: [symbolBucket]}),
+            createVectorData(extend({tileData}, {buckets: [symbolBucket]})),
             createPainter({
                 getLayer() {
                     return symbolBucket.layers[0];
@@ -289,8 +291,8 @@ describe('rtl text detection', () => {
 
 });
 
-function createRawTileData() {
-    return fs.readFileSync(path.join(__dirname, '../../test/unit/assets/mbsv5-6-18-23.vector.pbf'));
+function createRawTileData(): ArrayBuffer {
+    return bufferToArrayBuffer(fs.readFileSync(path.join(__dirname, '../../test/unit/assets/mbsv5-6-18-23.vector.pbf')));
 }
 
 function createVectorData(options?) {
