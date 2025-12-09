@@ -5,16 +5,16 @@ import {VectorTile} from '@mapbox/vector-tile';
 
 export type TileDataParameters = {
     rawData?: ArrayBuffer;
-    vectorTile?: VectorTileLike;
+    vectorData?: VectorTileLike;
 };
 
 export class TileData {
     rawData: ArrayBuffer;
-    vectorTile: VectorTileLike;
+    vectorData: VectorTileLike;
 
     constructor(params: TileDataParameters) {
         this.rawData = params.rawData;
-        this.vectorTile = params.vectorTile;
+        this.vectorData = params.vectorData;
     }
 
     /**
@@ -26,8 +26,8 @@ export class TileData {
         if (this.rawData) {
             return this.getRawDataLayers(encoding);
         }
-        if (this.vectorTile) {
-            return this.vectorTile.layers;
+        if (this.vectorData) {
+            return this.vectorData.layers;
         }
         return null;
     }

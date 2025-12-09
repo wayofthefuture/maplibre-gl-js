@@ -5,7 +5,6 @@ import {EXTENT} from './extent';
 import {featureFilter} from '@maplibre/maplibre-gl-style-spec';
 import {TransferableGridIndex} from '../util/transferable_grid_index';
 import {DictionaryCoder} from '../util/dictionary_coder';
-import Protobuf from 'pbf';
 import {GeoJSONFeature} from '../util/vectortile_to_geojson';
 import {mapObject, extend} from '../util/util';
 import {register} from '../util/web_worker_transfer';
@@ -14,7 +13,6 @@ import {polygonIntersectsBox} from '../util/intersection_tests';
 import {PossiblyEvaluated} from '../style/properties';
 import {FeatureIndexArray} from './array_types.g';
 
-import {MLTVectorTile} from '../source/vector_tile_mlt';
 import {Bounds} from '../geo/bounds';
 import type {OverscaledTileID} from '../tile/tile_id';
 import type {TileData} from '../tile/tile_data';
@@ -24,8 +22,7 @@ import type {MapGeoJSONFeature} from '../util/vectortile_to_geojson';
 import type {StyleLayer} from '../style/style_layer';
 import type {FeatureFilter, FeatureState, FilterSpecification, PromoteIdSpecification} from '@maplibre/maplibre-gl-style-spec';
 import type {IReadonlyTransform} from '../geo/transform_interface';
-import {type VectorTileFeatureLike, type VectorTileLayerLike, type Feature, GeoJSONWrapper, GEOJSON_TILE_LAYER_NAME} from '@maplibre/vt-pbf';
-import {VectorTile} from '@mapbox/vector-tile';
+import {type VectorTileFeatureLike, type VectorTileLayerLike, type Feature, GEOJSON_TILE_LAYER_NAME} from '@maplibre/vt-pbf';
 
 export {GEOJSON_TILE_LAYER_NAME};
 
@@ -70,7 +67,6 @@ export class FeatureIndex {
     promoteId?: PromoteIdSpecification;
     encoding: string;
     tileData: TileData;
-    geoJsonFeatureData: Feature[];
     bucketLayerIDs: Array<Array<string>>;
 
     vtLayers: {[_: string]: VectorTileLayerLike};
