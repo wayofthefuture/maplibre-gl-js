@@ -17,6 +17,7 @@ import {FeatureIndexArray} from './array_types.g';
 import {MLTVectorTile} from '../source/vector_tile_mlt';
 import {Bounds} from '../geo/bounds';
 import type {OverscaledTileID} from '../tile/tile_id';
+import type {TileData} from '../tile/tile_data';
 import type {SourceFeatureState} from '../source/source_state';
 import type {mat4} from 'gl-matrix';
 import type {MapGeoJSONFeature} from '../util/vectortile_to_geojson';
@@ -68,7 +69,7 @@ export class FeatureIndex {
     featureIndexArray: FeatureIndexArray;
     promoteId?: PromoteIdSpecification;
     encoding: string;
-    rawTileData: ArrayBuffer;
+    tileData: TileData;
     geoJsonFeatureData: Feature[];
     bucketLayerIDs: Array<Array<string>>;
 
@@ -115,13 +116,7 @@ export class FeatureIndex {
 
     loadVTLayers(): {[_: string]: VectorTileLayerLike} {
         if (!this.vtLayers) {
-            if (this.geoJsonFeatureData) {
-                this.vtLayers = new GeoJSONWrapper(this.geoJsonFeatureData, {version: 2, extent: EXTENT}).layers;
-            } else {
-                this.vtLayers = this.encoding !== 'mlt' ?
-                    new VectorTile(new Protobuf(this.rawTileData)).layers :
-                    new MLTVectorTile(this.rawTileData).layers;
-            }
+            this.vtLayers = this.tileData.getVectorTileLayers(this.encoding);
             this.sourceLayerCoder = new DictionaryCoder(this.vtLayers ? Object.keys(this.vtLayers).sort() : [GEOJSON_TILE_LAYER_NAME]);
         }
         return this.vtLayers;
@@ -344,7 +339,7 @@ export class FeatureIndex {
 register(
     'FeatureIndex',
     FeatureIndex,
-    {omit: ['rawTileData', 'sourceLayerCoder']}
+    {omit: ['tileData', 'sourceLayerCoder']}
 );
 
 function evaluateProperties(serializedProperties, styleLayerProperties, feature, featureState, availableImages) {

@@ -10,6 +10,7 @@ import {now} from '../util/time_control';
 import {toEvaluationFeature} from '../data/evaluation_feature';
 import {EvaluationParameters} from '../style/evaluation_parameters';
 import {rtlMainThreadPluginFactory} from '../source/rtl_text_plugin_main_thread';
+import type {TileData} from './tile_data';
 
 const CLOCK_SKEW_RETRY_TIMEOUT = 30000;
 
@@ -71,7 +72,7 @@ export class Tile {
     tileSize: number;
     buckets: {[_: string]: Bucket};
     latestFeatureIndex: FeatureIndex | null;
-    latestRawTileData: ArrayBuffer;
+    latestTileData: TileData;
     latestEncoding: string;
     imageAtlas: ImageAtlas;
     imageAtlasTexture: Texture;
@@ -218,20 +219,16 @@ export class Tile {
 
         if (data.featureIndex) {
             this.latestFeatureIndex = data.featureIndex;
-            if (data.geoJsonFeatures) {
-                // GeoJSON sources provide feature data directly instead of encoded
-                // tile data
-                this.latestFeatureIndex.geoJsonFeatureData = data.geoJsonFeatures;
-            } else if (data.rawTileData) {
+            if (data.tileData) {
                 // Only vector tiles have rawTileData, and they won't update it for
                 // 'reloadTile'
-                this.latestRawTileData = data.rawTileData;
-                this.latestFeatureIndex.rawTileData = data.rawTileData;
+                this.latestTileData = data.tileData;
+                this.latestFeatureIndex.tileData = data.tileData;
                 this.latestFeatureIndex.encoding = data.encoding;
-            } else if (this.latestRawTileData) {
+            } else if (this.latestTileData) {
                 // If rawTileData hasn't updated, hold onto a pointer to the last
                 // one we received
-                this.latestFeatureIndex.rawTileData = this.latestRawTileData;
+                this.latestFeatureIndex.tileData = this.latestTileData;
                 this.latestFeatureIndex.encoding = this.latestEncoding;
             }
         }
@@ -354,7 +351,7 @@ export class Tile {
         pixelPosMatrix: mat4,
         getElevation: undefined | ((x: number, y: number) => number)
     ): QueryResults {
-        if (!this.latestFeatureIndex || !(this.latestFeatureIndex.rawTileData || this.latestFeatureIndex.geoJsonFeatureData))
+        if (!this.latestFeatureIndex || !this.latestFeatureIndex.tileData)
             return {};
 
         return this.latestFeatureIndex.query({
@@ -372,7 +369,7 @@ export class Tile {
 
     querySourceFeatures(result: Array<GeoJSONFeature>, params?: QuerySourceFeatureOptionsStrict) {
         const featureIndex = this.latestFeatureIndex;
-        if (!featureIndex || !featureIndex.rawTileData) return;
+        if (!featureIndex || !featureIndex.tileData) return;
 
         const vtLayers = featureIndex.loadVTLayers();
 
@@ -470,7 +467,7 @@ export class Tile {
 
     setFeatureState(states: LayerFeatureStates, painter: any) {
         if (!this.latestFeatureIndex ||
-            !(this.latestFeatureIndex.rawTileData || this.latestFeatureIndex.geoJsonFeatureData) ||
+            !this.latestFeatureIndex.tileData ||
             Object.keys(states).length === 0) {
             return;
         }
