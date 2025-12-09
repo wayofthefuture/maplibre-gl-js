@@ -2,21 +2,16 @@ import {describe, test, expect, vi} from 'vitest';
 import {createSymbolBucket} from '../../test/unit/lib/create_symbol_layer';
 import {Tile} from './tile';
 import {OverscaledTileID} from './tile_id';
+import {TileData} from './tile_data';
 import fs from 'fs';
 import path from 'path';
-import {type Feature, fromVectorTileJs, GeoJSONWrapper} from '@maplibre/vt-pbf';
+import {type Feature, GeoJSONWrapper} from '@maplibre/vt-pbf';
 import {FeatureIndex, GEOJSON_TILE_LAYER_NAME} from '../data/feature_index';
 import {CollisionBoxArray} from '../data/array_types.g';
 import {extend} from '../util/util';
 import {serialize, deserialize} from '../util/web_worker_transfer';
 
 describe('querySourceFeatures', () => {
-    const features = [{
-        type: 1,
-        geometry: [0, 0],
-        tags: {oneway: true}
-    } as any as Feature];
-
     test('not data', () => {
         const tile = new Tile(new OverscaledTileID(3, 0, 2, 1, 2), undefined);
         const result = [];
@@ -25,11 +20,18 @@ describe('querySourceFeatures', () => {
     });
 
     describe('geojson tile', () => {
+        const geoJsonFeatures = [{
+            geometry: {
+                type: 'Point',
+                coordinate: [-90, 0]
+            },
+            properties: {oneway: true}
+        } as any as Feature];
         const tile = new Tile(new OverscaledTileID(3, 0, 2, 1, 2), undefined);
-        const geojsonWrapper = new GeoJSONWrapper(features);
+        const geojsonWrapper = new GeoJSONWrapper(geoJsonFeatures);
         geojsonWrapper.name = GEOJSON_TILE_LAYER_NAME;
         tile.loadVectorData(
-            createVectorData({rawTileData: fromVectorTileJs({layers: {[GEOJSON_TILE_LAYER_NAME]: geojsonWrapper}})}),
+            createVectorData({tileData: new TileData({vectorData: geojsonWrapper})}),
             createPainter()
         );
 
@@ -41,7 +43,7 @@ describe('querySourceFeatures', () => {
             result = [];
             tile.querySourceFeatures(result, {} as any);
             expect(result).toHaveLength(1);
-            expect(result[0].properties).toEqual(features[0].tags);
+            expect(result[0].properties).toEqual(geoJsonFeatures[0].tags);
         });
 
         test('filter source features', () => {

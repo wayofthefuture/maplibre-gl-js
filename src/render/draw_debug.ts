@@ -79,8 +79,8 @@ function drawDebugTile(painter: Painter, tileManager: TileManager, coord: Oversc
 
     context.activeTexture.set(gl.TEXTURE0);
 
-    const tileRawData = tileManager.getTileByID(coord.key).latestTileData;
-    const tileByteLength = (tileRawData && tileRawData.byteLength) || 0;
+    const tileData = tileManager.getTileByID(coord.key).latestTileData;
+    const tileByteLength = (tileData && tileData.rawData.byteLength) || 0;
     const tileSizeKb = Math.floor(tileByteLength / 1024);
     const tileSize = tileManager.getTile(coord).tileSize;
     const scaleRatio = (512 / Math.min(tileSize, 512) * (coord.overscaledZ / painter.transform.zoom)) * 0.5;

@@ -53,7 +53,7 @@ describe('FeatureIndex', () => {
             const layer = new CircleStyleLayer({source: 'source', paint: {}} as LayerSpecification, globalState);
             layer.recalculate({} as EvaluationParameters, []);
             const featureIndex = new FeatureIndex(tileID);
-            featureIndex.rawTileData = rawTileData as any as ArrayBuffer;
+            featureIndex.tileData.rawData = rawTileData as any as ArrayBuffer;
             featureIndex.bucketLayerIDs = [['layer']];
             featureIndex.insert(geojsonWrapper.feature(0), [[new Point(1, 1)]], 0, 0, 0);
 
@@ -79,7 +79,7 @@ describe('FeatureIndex', () => {
             layer.recalculate({} as EvaluationParameters, []);
             const featureIndex = new FeatureIndex(tileID);
             const mltRawData = readFileSync(path.join(__dirname, '../../test/integration/assets/tiles/mlt/5/17/10.mlt')).buffer.slice(0) as ArrayBuffer;
-            featureIndex.rawTileData = mltRawData;
+            featureIndex.tileData.rawData = mltRawData;
             featureIndex.encoding = 'mlt';
             featureIndex.bucketLayerIDs = [['layer']];
             featureIndex.insert({} as any, [[new Point(1, 1)]], 0, 0, 0);

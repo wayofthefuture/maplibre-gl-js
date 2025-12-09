@@ -9,12 +9,16 @@ export type TileDataParameters = {
 };
 
 export class TileData {
-    rawData: ArrayBuffer;
-    vectorData: VectorTileLike;
+    rawData?: ArrayBuffer;
+    vectorData?: VectorTileLike;
 
-    constructor(params: TileDataParameters) {
+    constructor(params: TileDataParameters = {}) {
         this.rawData = params.rawData;
         this.vectorData = params.vectorData;
+    }
+
+    public hasData(): boolean {
+        return this.rawData !== undefined || this.vectorData !== undefined;
     }
 
     /**

@@ -351,7 +351,7 @@ export class Tile {
         pixelPosMatrix: mat4,
         getElevation: undefined | ((x: number, y: number) => number)
     ): QueryResults {
-        if (!this.latestFeatureIndex || !this.latestFeatureIndex.tileData)
+        if (!this.latestFeatureIndex || !this.latestFeatureIndex.tileData.hasData())
             return {};
 
         return this.latestFeatureIndex.query({
@@ -369,7 +369,7 @@ export class Tile {
 
     querySourceFeatures(result: Array<GeoJSONFeature>, params?: QuerySourceFeatureOptionsStrict) {
         const featureIndex = this.latestFeatureIndex;
-        if (!featureIndex || !featureIndex.tileData) return;
+        if (!featureIndex || !featureIndex.tileData.hasData()) return;
 
         const vtLayers = featureIndex.loadVTLayers();
 
@@ -467,7 +467,7 @@ export class Tile {
 
     setFeatureState(states: LayerFeatureStates, painter: any) {
         if (!this.latestFeatureIndex ||
-            !this.latestFeatureIndex.tileData ||
+            !this.latestFeatureIndex.tileData.hasData() ||
             Object.keys(states).length === 0) {
             return;
         }

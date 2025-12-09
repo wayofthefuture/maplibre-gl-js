@@ -157,8 +157,11 @@ describe('vector tile worker source', () => {
             subdivisionGranularity: SubdivisionGranularitySetting.noSubdivision,
         } as any as WorkerTileParameters);
         expect(res).toBeDefined();
-        expect(res.rawTileData).toBeDefined();
-        expect(res.rawTileData).toStrictEqual(rawTileData);
+
+        console.log(res.tileData);
+
+        expect(res.tileData.rawData).toBeDefined();
+        expect(res.tileData.rawData).toStrictEqual(rawTileData);
     });
 
     test('VectorTileWorkerSource.loadTile reparses tile if reloadTile is called during reparsing', async () => {

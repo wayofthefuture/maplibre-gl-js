@@ -8,6 +8,7 @@ import {type Actor} from '../util/actor';
 import {type WorkerTileParameters} from './worker_source';
 import {setPerformance, sleep} from '../util/test/util';
 import {type FakeServer, fakeServer} from 'nise';
+import type {GeoJSONWrapper} from '@maplibre/vt-pbf';
 
 const actor = {send: () => {}} as any as Actor;
 
@@ -53,10 +54,11 @@ describe('reloadTile', () => {
         expect(spy).toHaveBeenCalledTimes(1);
 
         // geojson shouldn't encode any tile data, just provide features
-        expect(firstData.rawTileData).toBeUndefined();
+        expect(firstData.tileData.rawData).toBeUndefined();
 
         // geojson should support undefined properties
-        expect(firstData.geoJsonFeatures[0].tags).toStrictEqual({
+        const geoJsonWrapper = firstData.tileData.vectorData as GeoJSONWrapper;
+        expect(geoJsonWrapper.features[0].tags).toStrictEqual({
             'property1': 10,
             'property2': undefined,
             'property3': false
@@ -75,7 +77,7 @@ describe('reloadTile', () => {
 
         // should call loadVectorData again after changing geojson data
         data = await source.reloadTile(tileParams as any as WorkerTileParameters);
-        expect(data.geoJsonFeatures).toBeTruthy();
+        expect(data.tileData.vectorData).toBeTruthy();
         expect(data).toEqual(firstData);
         expect(spy).toHaveBeenCalledTimes(2);
     });

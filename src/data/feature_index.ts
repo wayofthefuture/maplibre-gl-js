@@ -12,17 +12,17 @@ import {EvaluationParameters} from '../style/evaluation_parameters';
 import {polygonIntersectsBox} from '../util/intersection_tests';
 import {PossiblyEvaluated} from '../style/properties';
 import {FeatureIndexArray} from './array_types.g';
+import {TileData} from '../tile/tile_data';
 
 import {Bounds} from '../geo/bounds';
 import type {OverscaledTileID} from '../tile/tile_id';
-import type {TileData} from '../tile/tile_data';
 import type {SourceFeatureState} from '../source/source_state';
 import type {mat4} from 'gl-matrix';
 import type {MapGeoJSONFeature} from '../util/vectortile_to_geojson';
 import type {StyleLayer} from '../style/style_layer';
 import type {FeatureFilter, FeatureState, FilterSpecification, PromoteIdSpecification} from '@maplibre/maplibre-gl-style-spec';
 import type {IReadonlyTransform} from '../geo/transform_interface';
-import {type VectorTileFeatureLike, type VectorTileLayerLike, type Feature, GEOJSON_TILE_LAYER_NAME} from '@maplibre/vt-pbf';
+import {type VectorTileFeatureLike, type VectorTileLayerLike, GEOJSON_TILE_LAYER_NAME} from '@maplibre/vt-pbf';
 
 export {GEOJSON_TILE_LAYER_NAME};
 
@@ -80,6 +80,7 @@ export class FeatureIndex {
         this.grid = new TransferableGridIndex(EXTENT, 16, 0);
         this.grid3D = new TransferableGridIndex(EXTENT, 16, 0);
         this.featureIndexArray = new FeatureIndexArray();
+        this.tileData = new TileData();
         this.promoteId = promoteId;
     }
 
