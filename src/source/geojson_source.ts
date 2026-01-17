@@ -194,7 +194,8 @@ export class GeoJSONSource extends Evented implements Source {
                 extent: EXTENT,
                 maxZoom: this.maxzoom,
                 lineMetrics: options.lineMetrics || false,
-                generateId: options.generateId || false
+                generateId: options.generateId || false,
+                updateable: this.map._experimentalUpdateableGeoJSONVT
             },
             superclusterOptions: {
                 maxZoom: this._getClusterMaxZoom(options.clusterMaxZoom),

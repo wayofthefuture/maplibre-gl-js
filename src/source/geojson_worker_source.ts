@@ -5,6 +5,7 @@ import {GeoJSONWrapper} from '@maplibre/vt-pbf';
 import {EXTENT} from '../data/extent';
 import Supercluster, {type Options as SuperclusterOptions, type ClusterProperties} from 'supercluster';
 import geojsonvt, {type Options as GeoJSONVTOptions} from 'geojson-vt';
+import geojsonvtExperimental, {type Options as GeoJSONVTOptionsExperimental} from '@maplibre/geojson-vt';
 import {VectorTileWorkerSource} from './vector_tile_worker_source';
 import {createExpression} from '@maplibre/maplibre-gl-style-spec';
 import {isAbortError} from '../util/abort_error';
@@ -23,7 +24,7 @@ import type {StyleLayerIndex} from '../style/style_layer_index';
 export type GeoJSONWorkerOptions = {
     source?: string;
     cluster?: boolean;
-    geojsonVtOptions?: GeoJSONVTOptions;
+    geojsonVtOptions?: GeoJSONVTOptions | GeoJSONVTOptionsExperimental;
     superclusterOptions?: SuperclusterOptions<any, any>;
     clusterProperties?: ClusterProperties;
     filter?: Array<unknown>;
@@ -50,7 +51,7 @@ export type LoadGeoJSONParameters = GeoJSONWorkerOptions & {
     dataDiff?: GeoJSONSourceDiff;
 };
 
-type GeoJSONIndex = ReturnType<typeof geojsonvt> | Supercluster;
+type GeoJSONIndex = ReturnType<typeof geojsonvt | typeof geojsonvtExperimental> | Supercluster;
 
 /**
  * The {@link WorkerSource} implementation that supports {@link GeoJSONSource}.
@@ -125,7 +126,15 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
             }
 
             const data = await this._pendingData;
-            this._geoJSONIndex = this._createGeoJSONIndex(data, params);
+
+            // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
+            const {updateable} = params.geojsonVtOptions;
+
+            if (this._geoJSONIndex && params.dataDiff && !params.cluster && updateable) {
+                this._geoJSONIndex.updateData(params.dataDiff);
+            } else {
+                this._geoJSONIndex = this._createGeoJSONIndex(data, params);
+            }
             this.loaded = {};
 
             const result: GeoJSONWorkerSourceLoadDataResult = {};
@@ -308,6 +317,10 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
 export function createGeoJSONIndex(data: GeoJSON.GeoJSON, params: LoadGeoJSONParameters): GeoJSONIndex {
     if (params.cluster) {
         return new Supercluster(getSuperclusterOptions(params)).load((data as any).features);
+    }
+    // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
+    if (params.geojsonVtOptions.updateable) {
+        return geojsonvtExperimental(data, params.geojsonVtOptions);
     }
     return geojsonvt(data, params.geojsonVtOptions);
 }
