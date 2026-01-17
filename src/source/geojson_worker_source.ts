@@ -121,10 +121,10 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
         const perf = this._startPerformance(params);
         this._pendingRequest = new AbortController();
         try {
-            const result: GeoJSONWorkerSourceLoadDataResult = {};
-
             // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
             if (params.geojsonVtOptions.experimentalUpdateable) {
+                const result: GeoJSONWorkerSourceLoadDataResult = {};
+
                 // Data is loaded from a fetchable URL - download it before processing data
                 if (params.request) {
                     const responseData = await this.loadGeoJSONFromUrl(params.request, params.promoteId, this._pendingRequest, true);
@@ -137,22 +137,27 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
                 this.processGeoJSONIndexExperimental(params);
                 delete this._pendingRequest;
                 this.loaded = {};
-            } else {
-                // Load and process the GeoJSON data if it hasn't been loaded yet or if the data is changed.
-                if (!this._pendingData || params.request || params.data || params.dataDiff) {
-                    this._pendingData = this.loadAndProcessGeoJSON(params, this._pendingRequest);
-                }
 
-                const data = await this._pendingData;
-                this._geoJSONIndex = this._createGeoJSONIndex(data, params);
-                this.loaded = {};
-
-                // Sending a large GeoJSON payload from the worker thread to the main thread
-                // is SLOW so we only do it if absolutely nescessary.
-                // The main thread already has a copy of this data UNLESS it was loaded
-                // from a URL.
-                if (params.request) result.data = data;
+                this._finishPerformance(perf, params, result);
+                return result;
             }
+
+            // Load and process the GeoJSON data if it hasn't been loaded yet or if the data is changed.
+            if (!this._pendingData || params.request || params.data || params.dataDiff) {
+                this._pendingData = this.loadAndProcessGeoJSON(params, this._pendingRequest);
+            }
+
+            const data = await this._pendingData;
+            this._geoJSONIndex = this._createGeoJSONIndex(data, params);
+            this.loaded = {};
+
+            const result: GeoJSONWorkerSourceLoadDataResult = {};
+
+            // Sending a large GeoJSON payload from the worker thread to the main thread
+            // is SLOW so we only do it if absolutely nescessary.
+            // The main thread already has a copy of this data UNLESS it was loaded
+            // from a URL.
+            if (params.request) result.data = data;
 
             this._finishPerformance(perf, params, result);
             return result;
@@ -208,7 +213,7 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
     }
 
     processGeoJSONIndexExperimental(params: LoadGeoJSONParameters) {
-        if (params.data) {
+        if (params.data || params.cluster) {
             // Full data source is set using a GeoJSON Object
             this._geoJSONIndex = this._createGeoJSONIndex(params.data, params);
 
