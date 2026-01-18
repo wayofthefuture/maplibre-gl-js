@@ -5,8 +5,12 @@ import rewind from '@mapbox/geojson-rewind';
 import {GeoJSONWrapper} from '@maplibre/vt-pbf';
 import {EXTENT} from '../data/extent';
 import Supercluster, {type Options as SuperclusterOptions, type ClusterProperties} from 'supercluster';
-import geojsonvt, {type Options as GeoJSONVTOptions} from 'geojson-vt';
-import geojsonvtExperimental from '@maplibre/geojson-vt';
+
+//to do: switch this import to new typescript @maplibre/geojson-vt once it is released
+//to do: uninstall geojson-vt after types are added to @maplibre/geojson-vt
+import {type Options as GeoJSONVTOptions} from 'geojson-vt';
+import geojsonvt from '@maplibre/geojson-vt';
+
 import {VectorTileWorkerSource} from './vector_tile_worker_source';
 import {createExpression} from '@maplibre/maplibre-gl-style-spec';
 import {isAbortError} from '../util/abort_error';
@@ -25,12 +29,14 @@ import type {StyleLayerIndex} from '../style/style_layer_index';
 export type GeoJSONWorkerOptions = {
     source?: string;
     cluster?: boolean;
-    geojsonVtOptions?: GeoJSONVTOptions & {experimentalUpdateable?: boolean};
+    geojsonVtOptions?: GeoJSONVTOptions;
     superclusterOptions?: SuperclusterOptions<any, any>;
     clusterProperties?: ClusterProperties;
     filter?: Array<unknown>;
     promoteId?: string;
     collectResourceTiming?: boolean;
+    // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
+    experimentalUpdateable?: boolean;
 };
 
 /**
@@ -52,7 +58,7 @@ export type LoadGeoJSONParameters = GeoJSONWorkerOptions & {
     dataDiff?: GeoJSONSourceDiff;
 };
 
-type GeoJSONIndex = ReturnType<typeof geojsonvt | typeof geojsonvtExperimental> | Supercluster;
+type GeoJSONIndex = ReturnType<typeof geojsonvt> | Supercluster;
 
 /**
  * The {@link WorkerSource} implementation that supports {@link GeoJSONSource}.
@@ -116,7 +122,7 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
      * @returns a promise that resolves when the data is loaded and parsed into a GeoJSON object
      */
     async loadData(params: LoadGeoJSONParameters): Promise<GeoJSONWorkerSourceLoadDataResult> {
-        if (params.geojsonVtOptions.experimentalUpdateable) {
+        if (params.experimentalUpdateable) {
             return this.experimentalLoadData(params);
         }
         this._pendingRequest?.abort();
@@ -180,7 +186,7 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
 
         // Temporary - to be removed once experimentalUpdateableGeoJSONVT is removed - should be initialized in the constructor as an empty index
         if (!this._geoJSONIndex) {
-            this._geoJSONIndex = this._createGeoJSONIndex({} as GeoJSON.GeoJSON, params);
+            this._geoJSONIndex = this._createGeoJSONIndex(this._toFeatureCollection([]), params);
         }
 
         // Data is loaded from a fetchable URL - download it before processing data
@@ -375,11 +381,14 @@ export function createGeoJSONIndex(data: GeoJSON.GeoJSON, params: LoadGeoJSONPar
     if (params.cluster) {
         return new Supercluster(getSuperclusterOptions(params)).load((data as any).features);
     }
+
     // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
-    if (params.geojsonVtOptions.experimentalUpdateable) {
-        const geojsonVtOptions = extend(params.geojsonVtOptions, {updateable: true});
-        return geojsonvtExperimental(data, geojsonVtOptions);
+    // to do: remove this once experimentalUpdateableGeoJSONVT is removed and set `updateable: true`
+    // in default geojsonVtOptions in geojson_source.ts about line 191
+    if (params.experimentalUpdateable) {
+        extend(params.geojsonVtOptions, {updateable: true});
     }
+
     return geojsonvt(data, params.geojsonVtOptions);
 }
 

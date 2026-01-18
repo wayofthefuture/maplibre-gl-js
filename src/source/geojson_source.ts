@@ -390,7 +390,9 @@ export class GeoJSONSource extends Evented implements Source {
 
         const {data, diff} = this._pendingWorkerUpdate;
 
-        const options: LoadGeoJSONParameters = extend({type: this.type}, this.workerOptions, {experimentalUpdateable: this.map._experimentalUpdateableGeoJSONVT});
+        // experimentalUpdateable property: when _experimentalUpdateableGeoJSONVT is removed, this property should be removed
+        // from here and `updateble: true` should be added to the geojsonVtOptions above (about line 191).
+        const options: LoadGeoJSONParameters = extend({type: this.type}, this.workerOptions, {experimentalUpdateable: this.map?._experimentalUpdateableGeoJSONVT});
         if (data !== undefined) {
             if (typeof data === 'string') {
                 options.request = this.map._requestManager.transformRequest(browser.resolveURL(data as string), ResourceType.Source);
