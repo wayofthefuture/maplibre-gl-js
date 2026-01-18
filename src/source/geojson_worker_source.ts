@@ -116,21 +116,14 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
      * @returns a promise that resolves when the data is loaded and parsed into a GeoJSON object
      */
     async loadData(params: LoadGeoJSONParameters): Promise<GeoJSONWorkerSourceLoadDataResult> {
+        if (params.geojsonVtOptions.experimentalUpdateable) {
+            return this.experimentalLoadData(params);
+        }
         this._pendingRequest?.abort();
 
         const perf = this._startPerformance(params);
         this._pendingRequest = new AbortController();
         try {
-            // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
-            if (params.geojsonVtOptions.experimentalUpdateable) {
-                const result = await this._experimentalLoadAndProcessGeoJSON(params, this._pendingRequest);
-                delete this._pendingRequest;
-                this.loaded = {};
-
-                this._finishPerformance(perf, params, result);
-                return result;
-            }
-
             // Load and process the GeoJSON data if it hasn't been loaded yet or if the data is changed.
             if (!this._pendingData || params.request || params.data || params.dataDiff) {
                 this._pendingData = this.loadAndProcessGeoJSON(params, this._pendingRequest);
@@ -157,6 +150,27 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
         }
     }
 
+    // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
+    async experimentalLoadData(params: LoadGeoJSONParameters): Promise<GeoJSONWorkerSourceLoadDataResult> {
+        try {
+            const perf = this._startPerformance(params);
+
+            this._pendingRequest?.abort();
+            this._pendingRequest = new AbortController();
+            const result = await this._experimentalLoadAndProcessGeoJSON(params, this._pendingRequest);
+            delete this._pendingRequest;
+
+            this.loaded = {};
+
+            this._finishPerformance(perf, params, result);
+            return result;
+        } catch (err) {
+            delete this._pendingRequest;
+            if (!isAbortError(err)) throw err;
+            return {abandoned: true};
+        }
+    }
+
     /**
      * Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
      * - Load and process the GeoJSON data into the GeoJSON index.
@@ -171,7 +185,8 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
 
         // Data is loaded from a fetchable URL - download it before processing data
         if (params.request) {
-            params.data = await this.loadGeoJSONFromUrl(params.request, params.promoteId, abortController, true);
+            const response = await getJSON<GeoJSON.GeoJSON>(params.request, abortController);
+            params.data = response.data;
         }
 
         // Create the GeoJSON index using the full `data` or update the index using a `dataDiff`
@@ -283,12 +298,7 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
     /**
      * Loads GeoJSON from a URL and sets the sources updateable GeoJSON object.
      */
-    async loadGeoJSONFromUrl(request: RequestParameters, promoteId: string, abortController: AbortController, experimentalUpdateable?: boolean): Promise<GeoJSON.GeoJSON> {
-        // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
-        if (experimentalUpdateable) {
-            const response = await getJSON<GeoJSON.GeoJSON>(request, abortController);
-            return response.data;
-        }
+    async loadGeoJSONFromUrl(request: RequestParameters, promoteId: string, abortController: AbortController): Promise<GeoJSON.GeoJSON> {
         const response = await getJSON<GeoJSON.GeoJSON>(request, abortController);
         this._dataUpdateable = toUpdateable(response.data, promoteId);
         return response.data;
