@@ -123,18 +123,7 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
         try {
             // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
             if (params.geojsonVtOptions.experimentalUpdateable) {
-                const result: GeoJSONWorkerSourceLoadDataResult = {};
-
-                // Data is loaded from a fetchable URL - download it before processing data
-                if (params.request) {
-                    const responseData = await this.loadGeoJSONFromUrl(params.request, params.promoteId, this._pendingRequest, true);
-                    params.data = responseData;
-                    // Sending a large GeoJSON payload from the worker thread to the main thread is SLOW so we only do it if
-                    // absolutely necessary. The main thread already has a copy of this data UNLESS it was loaded from a URL.
-                    result.data = responseData;
-                }
-
-                this.processGeoJSONIndexExperimental(params);
+                const result = await this._experimentalLoadAndProcessGeoJSON(params, this._pendingRequest);
                 delete this._pendingRequest;
                 this.loaded = {};
 
@@ -166,6 +155,45 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
             if (isAbortError(err)) return {abandoned: true};
             throw err;
         }
+    }
+
+    /**
+     * Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
+     * - Load and process the GeoJSON data into the GeoJSON index.
+     */
+    async _experimentalLoadAndProcessGeoJSON(params: LoadGeoJSONParameters, abortController: AbortController): Promise<GeoJSONWorkerSourceLoadDataResult> {
+        const workerResult: GeoJSONWorkerSourceLoadDataResult = {};
+
+        // Temporary - to be removed once experimentalUpdateableGeoJSONVT is removed - should be initialized in the constructor as an empty index
+        if (!this._geoJSONIndex) {
+            this._geoJSONIndex = this._createGeoJSONIndex({} as GeoJSON.GeoJSON, params);
+        }
+
+        // Data is loaded from a fetchable URL - download it before processing data
+        if (params.request) {
+            params.data = await this.loadGeoJSONFromUrl(params.request, params.promoteId, abortController, true);
+        }
+
+        // Create the GeoJSON index using the full `data` or update the index using a `dataDiff`
+        if (params.data) {
+            this._geoJSONIndex = this._createGeoJSONIndex(params.data, params);
+        }
+        else if (params.dataDiff) {
+            this._geoJSONIndex.updateData(params.dataDiff);
+        }
+
+        // Filter the GeoJSON index if the filter parameter was provided
+        if (params.filter) {
+            this._geoJSONIndex.filterData(params.filter);
+        }
+
+        // Only send `data` back to the main thread if it was loaded via a URL. Sending a large GeoJSON payload from the worker to the
+        // main thread is slow so we only do if necessary. The main thread already has a copy of the data unless it was loaded via URL.
+        if (params.request) {
+            workerResult.data = this._geoJSONIndex.getData();
+        }
+
+        return workerResult;
     }
 
     _startPerformance(params: LoadGeoJSONParameters): RequestPerformance | undefined {
@@ -209,23 +237,6 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
             return super.reloadTile(params);
         } else {
             return this.loadTile(params);
-        }
-    }
-
-    processGeoJSONIndexExperimental(params: LoadGeoJSONParameters) {
-        if (params.data || params.cluster) {
-            // Full data source is set using a GeoJSON Object
-            this._geoJSONIndex = this._createGeoJSONIndex(params.data, params);
-
-        } else if (params.dataDiff) {
-            // Current data source is updated using a GeoJSONSourceDiff
-            this._geoJSONIndex.updateData(params.dataDiff);
-        }
-
-        if (!this._geoJSONIndex) return;
-
-        if (params.filter) {
-            this._geoJSONIndex.filterData(params.filter);
         }
     }
 

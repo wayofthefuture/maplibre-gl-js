@@ -194,8 +194,7 @@ export class GeoJSONSource extends Evented implements Source {
                 extent: EXTENT,
                 maxZoom: this.maxzoom,
                 lineMetrics: options.lineMetrics || false,
-                generateId: options.generateId || false,
-                experimentalUpdateable: this.map._experimentalUpdateableGeoJSONVT
+                generateId: options.generateId || false
             },
             superclusterOptions: {
                 maxZoom: this._getClusterMaxZoom(options.clusterMaxZoom),
@@ -391,7 +390,7 @@ export class GeoJSONSource extends Evented implements Source {
 
         const {data, diff} = this._pendingWorkerUpdate;
 
-        const options: LoadGeoJSONParameters = extend({type: this.type}, this.workerOptions);
+        const options: LoadGeoJSONParameters = extend({type: this.type}, this.workerOptions, {experimentalUpdateable: this.map._experimentalUpdateableGeoJSONVT});
         if (data !== undefined) {
             if (typeof data === 'string') {
                 options.request = this.map._requestManager.transformRequest(browser.resolveURL(data as string), ResourceType.Source);
