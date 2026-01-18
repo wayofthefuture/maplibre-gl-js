@@ -386,7 +386,7 @@ export function createGeoJSONIndex(data: GeoJSON.GeoJSON, params: LoadGeoJSONPar
     // to do: remove this once experimentalUpdateableGeoJSONVT is removed and set `updateable: true`
     // in default geojsonVtOptions in geojson_source.ts about line 191
     if (params.experimentalUpdateable) {
-        extend(params.geojsonVtOptions, {updateable: true});
+        params.geojsonVtOptions = extend(params.geojsonVtOptions || {}, {updateable: true});
     }
 
     return geojsonvt(data, params.geojsonVtOptions);
