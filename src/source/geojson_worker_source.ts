@@ -127,7 +127,7 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
         }
         this._pendingRequest?.abort();
 
-        const perf = this._startPerformance(params);
+        const perf = this._startResourceTiming(params);
         this._pendingRequest = new AbortController();
         try {
             // Load and process the GeoJSON data if it hasn't been loaded yet or if the data is changed.
@@ -147,7 +147,7 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
             // from a URL.
             if (params.request) result.data = data;
 
-            this._finishPerformance(perf, params, result);
+            this._finishResourceTiming(perf, params, result);
             return result;
         } catch (err) {
             delete this._pendingRequest;
@@ -158,17 +158,16 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
 
     // Experimental updateable geojsonvt option - see map.ts experimentalUpdateableGeoJSONVT
     async experimentalLoadData(params: LoadGeoJSONParameters): Promise<GeoJSONWorkerSourceLoadDataResult> {
-        try {
-            const perf = this._startPerformance(params);
+        this._pendingRequest?.abort();
+        this._pendingRequest = new AbortController();
+        const perf = this._startResourceTiming(params);
 
-            this._pendingRequest?.abort();
-            this._pendingRequest = new AbortController();
+        try {
             const result = await this._experimentalLoadAndProcessGeoJSON(params, this._pendingRequest);
             delete this._pendingRequest;
-
             this.loaded = {};
 
-            this._finishPerformance(perf, params, result);
+            this._finishResourceTiming(perf, params, result);
             return result;
         } catch (err) {
             delete this._pendingRequest;
@@ -217,20 +216,20 @@ export class GeoJSONWorkerSource extends VectorTileWorkerSource {
         return workerResult;
     }
 
-    _startPerformance(params: LoadGeoJSONParameters): RequestPerformance | undefined {
+    _startResourceTiming(params: LoadGeoJSONParameters): RequestPerformance | undefined {
         if (!params?.request?.collectResourceTiming) return;
         return new RequestPerformance(params.request);
     }
 
-    _finishPerformance(perf: RequestPerformance, params: LoadGeoJSONParameters, result: GeoJSONWorkerSourceLoadDataResult): void {
+    _finishResourceTiming(perf: RequestPerformance, params: LoadGeoJSONParameters, result: GeoJSONWorkerSourceLoadDataResult): void {
         if (!perf) return;
-        const resourceTimingData = perf.finish();
+
+        const timingData = perf.finish();
+        if (!timingData) return;
+
         // it's necessary to eval the result of getEntriesByName() here via parse/stringify
         // late evaluation in the main thread causes TypeError: illegal invocation
-        if (resourceTimingData) {
-            result.resourceTiming = {};
-            result.resourceTiming[params.source] = JSON.parse(JSON.stringify(resourceTimingData));
-        }
+        result.resourceTiming = {[params.source]: JSON.parse(JSON.stringify(timingData))};
     }
 
     /**
